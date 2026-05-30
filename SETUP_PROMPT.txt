@@ -1,0 +1,18 @@
+CLAUDE CODE SETUP PROMPT
+========================
+Paste this into Claude Code after opening the grassion-hq folder:
+
+---
+
+I have uploaded all project files into this folder. Do the following:
+
+1. Read all files in this folder
+2. Open src/GrassionHQ.jsx — it currently has a placeholder comment. 
+   I will now paste the real contents. Replace everything in that file 
+   with what I paste next.
+3. After I paste the contents, run: npm install
+4. Then run: npm run build
+5. If build succeeds, tell me "BUILD SUCCESS — ready to deploy"
+6. If build fails, fix all errors automatically and try again
+
+---
