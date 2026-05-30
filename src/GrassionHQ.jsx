@@ -65,7 +65,7 @@ async function callAI(system, msgs, creds) {
   const r = await fetch("https://api.openai.com/v1/chat/completions", {
     method:"POST",
     headers:{"Content-Type":"application/json","Authorization":`Bearer ${oKey}`},
-    body:JSON.stringify({model:"gpt-4o",max_tokens:1200,messages:[{role:"system",content:system},...msgs]})
+    body:JSON.stringify({model:"gpt-4o-mini",max_tokens:1200,messages:[{role:"system",content:system},...msgs]})
   });
   const d = await r.json();
   if(d.error) throw new Error(d.error.message);
