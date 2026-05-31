@@ -139,23 +139,16 @@ const INIT_DEALS = [
 
 // ─── AI CALL ──────────────────────────────────────────────────────────────────
 async function callAI(system, msgs, creds) {
-  const oKey = creds?.openai?.api_key;
-  if (oKey) {
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
-      method:"POST", headers:{"Content-Type":"application/json","Authorization":`Bearer ${oKey}`},
-      body: JSON.stringify({model:"gpt-4o-mini", max_tokens:1500, messages:[{role:"system",content:system},...msgs]})
-    });
-    const d = await r.json();
-    if(d.error) throw new Error(d.error.message);
-    return d.choices?.[0]?.message?.content || "No response.";
-  }
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
-    method:"POST", headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({model:"claude-sonnet-4-20250514", max_tokens:1500, system, messages:msgs})
+  const oKey = creds?.openai?.api_key?.trim();
+  if (!oKey) throw new Error("⚠️ No OpenAI key found. Go to 🔑 Keys tab → paste your OpenAI API key (sk-...) → click SAVE.");
+  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":`Bearer ${oKey}`},
+    body: JSON.stringify({model:"gpt-4o-mini", max_tokens:1500, messages:[{role:"system",content:system},...msgs]})
   });
   const d = await r.json();
-  if(d.error) throw new Error(JSON.stringify(d.error));
-  return d.content?.map(b=>b.text||"").join("") || "No response.";
+  if(d.error) throw new Error(`OpenAI: ${d.error.message}`);
+  return d.choices?.[0]?.message?.content || "No response.";
 }
 
 async function genImage(prompt, key) {
@@ -1360,7 +1353,8 @@ export default function GrassionHQ() {
 
   const select = (id) => { setActiveAgent(id); setNewMsg(p=>({...p,[id]:false})); };
 
-  const aiMode = creds?.openai?.api_key ? "GPT-4o-mini" : "Claude";
+  const hasKey = !!(creds?.openai?.api_key?.trim());
+  const aiMode = hasKey ? "GPT-4o-mini ✓" : "NO KEY";
   const TABS = [
     ["stats","📊 Stats"],
     ["agents","👥 Agents"],
@@ -1393,12 +1387,25 @@ export default function GrassionHQ() {
           ))}
         </div>
         <div style={{marginLeft:"auto",display:"flex",gap:5,fontSize:9,fontFamily:"monospace"}}>
-          <span style={{background:creds?.openai?.api_key?"#10a37f22":"#22c55e22",color:creds?.openai?.api_key?"#10a37f":"#22c55e",padding:"2px 7px",borderRadius:6,border:`1px solid ${creds?.openai?.api_key?"#10a37f44":"#22c55e44"}`}}>{aiMode}</span>
+          <span style={{background:hasKey?"#10a37f22":"#ef444422",color:hasKey?"#10a37f":"#ef4444",padding:"2px 7px",borderRadius:6,border:`1px solid ${hasKey?"#10a37f44":"#ef444444"}`,fontWeight:700}}>{aiMode}</span>
           {creds?.openai?.api_key && <span style={{background:"#6366f122",color:"#818cf8",padding:"2px 7px",borderRadius:6,border:"1px solid #6366f144"}}>🎨 DALL-E</span>}
           {ghCtx && <span style={{background:"#e5e7eb11",color:"#9ca3af",padding:"2px 7px",borderRadius:6,border:"1px solid #37414155"}}>🐙 Live Code</span>}
           {Object.values(agentMemory).some(m=>m?.trim()) && <span style={{background:"#22c55e11",color:"#22c55e",padding:"2px 7px",borderRadius:6,border:"1px solid #22c55e22"}}>🧠 Memory On</span>}
         </div>
       </div>
+
+      {/* No-Key Banner */}
+      {!hasKey && (
+        <div style={{background:"#450a0a",borderBottom:"1px solid #ef4444",padding:"8px 16px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+          <span style={{fontSize:16}}>⚠️</span>
+          <span style={{color:"#fca5a5",fontSize:12,fontFamily:"monospace",flex:1}}>
+            <strong>Agents are inactive.</strong> Go to <strong>🔑 Keys</strong> tab → paste your OpenAI API key (sk-...) → click SAVE. Then all agents will work.
+          </span>
+          <button onClick={()=>setTab("keys")} style={{background:"#ef4444",border:"none",borderRadius:6,padding:"5px 14px",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"monospace",flexShrink:0}}>
+            ADD KEY NOW →
+          </button>
+        </div>
+      )}
 
       {/* Content */}
       <div style={{flex:1,overflow:"hidden",display:"flex"}}>
