@@ -1190,7 +1190,7 @@ export default function GrassionHQ() {
   const [generatedImgs, setGeneratedImgs] = useState({});
 
   const updateDeals = (d) => { setDeals(d); save("hqf_deals", d); };
-  const saveCreds = (c) => { setCreds(c); save("hqf_creds", c); };
+  const saveCreds = (c) => { setCreds(c); save("hqf_creds", c); window.dispatchEvent(new Event("hqf-creds-updated")); };
   const updateMemory = (agentId, mem) => {
     const newMem = {...agentMemory, [agentId]:mem};
     setAgentMemory(newMem);

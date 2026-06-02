@@ -108,10 +108,30 @@ const EXTRA = {
 };
 
 // ─── IMAGE GENERATION (Canvas, no API needed) ─────────────────────────────
+function fillRoundRect(ctx, x, y, w, h, radii) {
+  if (typeof ctx.roundRect === "function") {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, radii);
+    ctx.fill();
+  } else {
+    ctx.fillRect(x, y, w, h);
+  }
+}
+
+function getOpenAIKey() {
+  try {
+    const c = JSON.parse(localStorage.getItem("hqf_creds") || "{}");
+    return c?.openai?.api_key?.trim() || "";
+  } catch {
+    return "";
+  }
+}
+
 function makeImg(day, slot, topic, acc) {
   const cv = document.createElement("canvas");
   cv.width = 1200; cv.height = 630;
   const x = cv.getContext("2d");
+  if (!x) return null;
   const BGS = { "#dc2626":"#0a0000","#f97316":"#0a0500","#3b82f6":"#000814","#22c55e":"#001a0a","#a855f7":"#0a0008" };
   const g = x.createLinearGradient(0, 0, 1200, 630);
   g.addColorStop(0, BGS[acc] || "#080808"); g.addColorStop(1, "#111");
@@ -126,7 +146,7 @@ function makeImg(day, slot, topic, acc) {
     const bx = 710 + i * 46, bh = h * 230, by = 385 - bh;
     const bg = x.createLinearGradient(0, by, 0, 385);
     bg.addColorStop(0, acc + "bb"); bg.addColorStop(1, acc + "15");
-    x.fillStyle = bg; x.beginPath(); x.roundRect(bx, by, 32, bh, [5,5,0,0]); x.fill();
+    x.fillStyle = bg; fillRoundRect(x, bx, by, 32, bh, [5, 5, 0, 0]);
     x.fillStyle = acc; x.fillRect(bx, by, 32, 3);
   });
   x.strokeStyle = "#ffffff06"; x.lineWidth = 1;
@@ -137,7 +157,7 @@ function makeImg(day, slot, topic, acc) {
   const lb = x.createLinearGradient(0, 0, 0, 630);
   lb.addColorStop(0, acc); lb.addColorStop(1, "transparent");
   x.fillStyle = lb; x.fillRect(0, 0, 4, 630);
-  x.fillStyle = acc + "20"; x.beginPath(); x.roundRect(60, 50, 166, 32, 16); x.fill();
+  x.fillStyle = acc + "20"; fillRoundRect(x, 60, 50, 166, 32, 16);
   x.font = "700 12px monospace"; x.fillStyle = acc; x.textAlign = "center";
   x.fillText(`WEEK ${Math.ceil(day / 7)} · DAY ${day}`, 143, 71); x.textAlign = "left";
   if (day >= 29) {
@@ -192,7 +212,19 @@ const lp = () => {
     return [];
   }
 };
-const sp = (p) => { try { localStorage.setItem(SK, JSON.stringify(p)); } catch {} };
+const sp = (p) => {
+  try {
+    localStorage.setItem(SK, JSON.stringify(p));
+    return true;
+  } catch {
+    try {
+      localStorage.setItem(SK, JSON.stringify(p.map(({ img, ...rest }) => ({ ...rest, img: null }))));
+      return "slim";
+    } catch {
+      return false;
+    }
+  }
+};
 
 /** Split thread by numbered tweets: 1/, 2/, … */
 function extractTwitterTweets(content) {
@@ -408,19 +440,26 @@ export default function ZeusAgent() {
   const [filt, setFilt] = useState("all");
   const [ist, setIst] = useState("");
 
-  // Read OpenAI key from GrassionHQ credentials in localStorage
-  const oKey = useMemo(() => {
-    try {
-      const c = JSON.parse(localStorage.getItem("hqf_creds") || "{}");
-      return c?.openai?.api_key?.trim() || "";
-    } catch { return ""; }
+  const [oKey, setOKey] = useState(getOpenAIKey);
+
+  useEffect(() => {
+    const refreshKey = () => setOKey(getOpenAIKey());
+    refreshKey();
+    window.addEventListener("storage", refreshKey);
+    window.addEventListener("hqf-creds-updated", refreshKey);
+    document.addEventListener("visibilitychange", refreshKey);
+    return () => {
+      window.removeEventListener("storage", refreshKey);
+      window.removeEventListener("hqf-creds-updated", refreshKey);
+      document.removeEventListener("visibilitychange", refreshKey);
+    };
   }, []);
 
   useEffect(() => {
     const t = () => setIst(new Intl.DateTimeFormat("en-IN",{timeZone:"Asia/Kolkata",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date()));
     t(); const id = setInterval(t, 30000); return () => clearInterval(id);
   }, []);
-  useEffect(() => sp(posts), [posts]);
+  useEffect(() => { sp(posts); }, [posts]);
   useEffect(() => {
     if (tab === "metrics") setPosts(lp());
   }, [tab]);
@@ -430,36 +469,62 @@ export default function ZeusAgent() {
   const mt = useMemo(() => calcMetrics(posts), [posts]);
 
   const doGen = async (entry) => {
-    if (!oKey) { toast_("Add your OpenAI key in the 🔑 Keys tab first","err"); return; }
+    const key = getOpenAIKey();
+    if (!key) { toast_("Add your OpenAI key in the 🔑 Keys tab → SAVE, then try again","err"); return; }
     if (!sel.length) { toast_("Select at least one platform","err"); return; }
-    setGen({day:entry[0],slot:entry[1]});
+    setGen({ day: entry[0], slot: entry[1] });
     const np = [];
+    const failed = [];
     for (const pid of sel) {
-      setGst(`Writing ${PLATFORMS.find(p=>p.id===pid)?.name}…`);
+      const pname = PLATFORMS.find((p) => p.id === pid)?.name || pid;
+      setGst(`Writing ${pname}…`);
       try {
         const extra = EXTRA[entry[4]] || `Write about: "${entry[4]}". ${entry[3]==="LAUNCH"||entry[3]==="POST-LAUNCH"?"Include grassion.com at the end.":"No product promotion whatsoever."}`;
         const r = await fetch("https://api.openai.com/v1/chat/completions", {
-          method:"POST",
-          headers:{"Content-Type":"application/json","Authorization":`Bearer ${oKey}`},
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
           body: JSON.stringify({
-            model:"gpt-4o",
-            max_tokens:1000,
-            messages:[
-              {role:"system",content:SYSTEM + (pid === "twitter" ? "\n\nTWITTER THREAD RULE: Each tweet line starting with 1/, 2/, etc. must be STRICTLY under 280 characters total (number prefix included). Count characters per tweet before you finish. Never exceed 280 on any single tweet." : "")},
-              {role:"user",content:`PLATFORM: ${PLATFORMS.find(p=>p.id===pid)?.name}\nINSTRUCTIONS: ${INSTR[pid]||INSTR.linkedin}\nTOPIC: ${entry[4]}\nADDITIONAL CONTEXT: ${extra}`}
-            ]
-          })
+            model: "gpt-4o-mini",
+            max_tokens: pid === "twitter" ? 2500 : 1500,
+            messages: [
+              { role: "system", content: SYSTEM + (pid === "twitter" ? "\n\nTWITTER THREAD RULE: Each tweet line starting with 1/, 2/, etc. must be STRICTLY under 280 characters total (number prefix included). Count characters per tweet before you finish. Never exceed 280 on any single tweet." : "") },
+              { role: "user", content: `PLATFORM: ${pname}\nINSTRUCTIONS: ${INSTR[pid] || INSTR.linkedin}\nTOPIC: ${entry[4]}\nADDITIONAL CONTEXT: ${extra}` },
+            ],
+          }),
         });
         const d = await r.json();
+        if (!r.ok) throw new Error(d.error?.message || `HTTP ${r.status}`);
         if (d.error) throw new Error(d.error.message);
-        let content = d.choices?.[0]?.message?.content || "";
+        let content = (d.choices?.[0]?.message?.content || "").trim();
+        if (!content) throw new Error("OpenAI returned empty content");
         if (pid === "twitter") content = enforceTwitterThread(content);
-        const img = (pid==="linkedin"||pid==="twitter") ? makeImg(entry[0],entry[1],entry[4],entry[5]) : null;
-        np.push({id:`${Date.now()}_${pid}`,pid,day:entry[0],slot:entry[1],theme:entry[3],topic:entry[4],content,img,posted:false,reach:0,likes:0,createdAt:Date.now()});
-      } catch(e) { toast_(`Error: ${e.message}`,"err"); }
+        let img = null;
+        if (pid === "linkedin" || pid === "twitter") {
+          try { img = makeImg(entry[0], entry[1], entry[4], entry[5]); } catch { /* image optional */ }
+        }
+        np.push({ id: `${Date.now()}_${pid}`, pid, day: entry[0], slot: entry[1], theme: entry[3], topic: entry[4], content, img, posted: false, reach: 0, likes: 0, createdAt: Date.now() });
+      } catch (e) {
+        failed.push(`${pname}: ${e.message}`);
+        toast_(`${pname} failed: ${e.message}`, "err");
+      }
     }
-    if (np.length) { setPosts(p=>[...np,...p]); toast_(`✓ ${np.length} post${np.length>1?"s":""} ready`); setTab("posts"); }
-    setGen(null); setGst("");
+    if (np.length) {
+      setPosts((p) => {
+        const next = [...np, ...p];
+        const saved = sp(next);
+        if (saved === false) toast_("Posts created but could not save to browser — export a backup", "err");
+        return next;
+      });
+      toast_(`✓ ${np.length} post${np.length > 1 ? "s" : ""} ready`);
+      setTab("posts");
+    } else if (failed.length) {
+      toast_(failed.join(" · "), "err");
+    } else {
+      toast_("Nothing generated — check OpenAI key and platform selection", "err");
+    }
+    setGen(null);
+    setGst("");
+    setOKey(key);
   };
 
   const calByDay = {};
