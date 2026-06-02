@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import ZeusAgent from "./ZeusAgent";
 
 // ─── GRASSION CONTEXT ────────────────────────────────────────────────────────
 const GC = `GRASSION — AI Engineering Intelligence SaaS. "Where AI Code Meets Accountability"
@@ -1280,6 +1281,7 @@ export default function GrassionHQ() {
   const TABS = [
     ["stats","📊 Stats"],
     ["agents","👥 Agents"],
+    ["zeus","⚡ ZEUS"],
     ["inbox","📬 SSD Inbox"],
     ["sales","🎯 Sales"],
     ["github","🐙 GitHub"],
@@ -1400,6 +1402,7 @@ export default function GrassionHQ() {
           /* All other tabs — wrap in flex:1 so they fill full width */
           <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column",minWidth:0}}>
             {tab==="stats" && <StatsDash deals={deals}/>}
+            {tab==="zeus" && <ZeusAgent />}
             {tab==="inbox" && <SSDInbox reports={reports} onGetAll={getAllReports} collecting={collecting}/>}
             {tab==="sales" && (
               <Pipeline
