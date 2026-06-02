@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { setAuthenticated } from "./auth";
 
 const U = "saisnatadash";
 const P = "#Jay_Hind7077";
@@ -12,7 +13,7 @@ export default function Login({ onAuth }) {
   const submit = (e) => {
     e.preventDefault();
     if (user === U && pass === P) {
-      sessionStorage.setItem("ghq_auth", "1");
+      setAuthenticated();
       onAuth();
     } else {
       setErr("Invalid credentials.");
@@ -21,9 +22,9 @@ export default function Login({ onAuth }) {
   };
 
   return (
-    <div style={{ background: "#030303", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI',system-ui,sans-serif" }}>
-      <style>{`*{box-sizing:border-box} input{outline:none}`}</style>
-      <div style={{ width: 360, padding: 32, background: "#0a0a0a", border: "1px solid #22c55e33", borderRadius: 16 }}>
+    <div style={{ background: "#030303", minHeight: "100dvh", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI',system-ui,sans-serif", padding: "max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom))" }}>
+      <style>{`*{box-sizing:border-box} input,button{font-size:16px} input{outline:none;-webkit-appearance:none}`}</style>
+      <div style={{ width: "100%", maxWidth: 360, padding: "24px 20px", background: "#0a0a0a", border: "1px solid #22c55e33", borderRadius: 16 }}>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>🌱</div>
           <div style={{ color: "#22c55e", fontWeight: 900, fontSize: 22, fontFamily: "monospace", letterSpacing: 2 }}>GRASSION HQ</div>
@@ -33,13 +34,13 @@ export default function Login({ onAuth }) {
           <div style={{ marginBottom: 14 }}>
             <div style={{ color: "#6b7280", fontSize: 10, fontFamily: "monospace", marginBottom: 4 }}>USERNAME</div>
             <input value={user} onChange={e => setUser(e.target.value)} placeholder="saisnatadash" autoComplete="username"
-              style={{ width: "100%", background: "#111", border: "1px solid #1f2937", borderRadius: 8, padding: "10px 12px", color: "#e5e7eb", fontSize: 13, fontFamily: "monospace" }} />
+              style={{ width: "100%", background: "#111", border: "1px solid #1f2937", borderRadius: 8, padding: "12px", color: "#e5e7eb", fontSize: 16, fontFamily: "monospace" }} />
           </div>
           <div style={{ marginBottom: 20 }}>
             <div style={{ color: "#6b7280", fontSize: 10, fontFamily: "monospace", marginBottom: 4 }}>PASSWORD</div>
             <div style={{ position: "relative" }}>
               <input type={show ? "text" : "password"} value={pass} onChange={e => setPass(e.target.value)} placeholder="••••••••••" autoComplete="current-password"
-                style={{ width: "100%", background: "#111", border: "1px solid #1f2937", borderRadius: 8, padding: "10px 36px 10px 12px", color: "#e5e7eb", fontSize: 13, fontFamily: "monospace" }} />
+                style={{ width: "100%", background: "#111", border: "1px solid #1f2937", borderRadius: 8, padding: "12px 40px 12px 12px", color: "#e5e7eb", fontSize: 16, fontFamily: "monospace" }} />
               <button type="button" onClick={() => setShow(s => !s)} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "transparent", border: "none", color: "#4b5563", cursor: "pointer", fontSize: 14 }}>
                 {show ? "🙈" : "👁️"}
               </button>
@@ -50,8 +51,8 @@ export default function Login({ onAuth }) {
             ENTER HQ
           </button>
         </form>
-        <div style={{ marginTop: 16, color: "#1f2937", fontSize: 9, textAlign: "center", fontFamily: "monospace" }}>
-          Private workspace · Session expires on close
+        <div style={{ marginTop: 16, color: "#1f2937", fontSize: 9, textAlign: "center", fontFamily: "monospace", lineHeight: 1.5 }}>
+          Private workspace · Stays signed in on this phone or computer
         </div>
       </div>
     </div>

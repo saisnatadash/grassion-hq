@@ -82,7 +82,7 @@ CRITICAL FORMAT RULES — follow these exactly or the post fails:
 // ─── PLATFORM INSTRUCTIONS ────────────────────────────────────────────────
 const INSTR = {
   linkedin: `LinkedIn post. 700 to 1000 characters. Start with a single punchy line that stops the scroll — a specific dollar amount, a provocative observation, or a stat that surprises. Then 3 short paragraphs of plain prose. End with one question that makes CTOs uncomfortable in a good way. Max 3 hashtags at the very end. No bullet points. No asterisks. Conversational paragraphs only.`,
-  twitter: `Twitter thread. 8 tweets numbered 1/ through 8/. Each tweet under 280 characters. First tweet is the hook — scroll-stopping, specific. Build tension tweet by tweet. Last tweet is a question or sharp insight. Plain text sentences only, no formatting characters.`,
+  twitter: `Twitter thread. 8 tweets numbered 1/ through 8/. CRITICAL: each tweet line must be STRICTLY under 280 characters total including the "1/" prefix — count every character. If unsure, write shorter. First tweet is the hook — scroll-stopping, specific. Build tension tweet by tweet. Last tweet is a question or sharp insight. Plain text sentences only, no formatting characters.`,
   reddit: `Reddit r/SaaS post. First line is the title. Then body text in plain conversational paragraphs. Honest founder voice. Can hint at building something. No spam. Reads like a genuine observation from someone who works in engineering.`,
   devto: `Dev.to article. First line is a punchy article title. Then 700 to 900 words of plain prose with clear paragraph breaks. No markdown headers, no bullet points. Write naturally like a blog post, not a listicle. End with a question for the reader.`,
   hn: `Hacker News submission. Show HN or Ask HN format. Under 200 words total. Completely factual. Zero hype. Reads like an engineer wrote it. Plain text only.`,
@@ -176,8 +176,99 @@ const PLATFORMS = [
 
 const wc = (d) => ["#dc2626","#f97316","#3b82f6","#22c55e","#22c55e","#a855f7"][Math.min(Math.ceil(d / 7) - 1, 5)];
 const SK = "zeus_v8";
-const lp = () => { try { return JSON.parse(localStorage.getItem(SK) || "[]"); } catch { return []; } };
+const TW_CHAR_LIMIT = 280;
+
+const normalizePosts = (arr) => (Array.isArray(arr) ? arr : []).map((p) => ({
+  ...p,
+  posted: !!p.posted,
+  reach: Number(p.reach) || 0,
+  likes: Number(p.likes) || 0,
+}));
+
+const lp = () => {
+  try {
+    return normalizePosts(JSON.parse(localStorage.getItem(SK) || "[]"));
+  } catch {
+    return [];
+  }
+};
 const sp = (p) => { try { localStorage.setItem(SK, JSON.stringify(p)); } catch {} };
+
+/** Split thread by numbered tweets: 1/, 2/, … */
+function extractTwitterTweets(content) {
+  const text = (content || "").trim();
+  if (!text) return [];
+  const chunks = text.split(/(?=(?:^|\n)\d+\/\s?)/m).map((c) => c.trim()).filter(Boolean);
+  if (!chunks.length) return [{ num: "1/", text }];
+  return chunks.map((chunk, i) => {
+    const m = chunk.match(/^(\d+\/)\s*([\s\S]*)$/);
+    if (m) return { num: m[1], text: m[2].trim() };
+    return { num: `${i + 1}/`, text: chunk.replace(/^\d+\/\s*/, "").trim() };
+  });
+}
+
+function tweetLine(num, body) {
+  const prefix = `${num} `;
+  const maxBody = TW_CHAR_LIMIT - prefix.length;
+  let b = body;
+  if (b.length > maxBody) b = b.slice(0, Math.max(0, maxBody));
+  let line = `${num} ${b}`.trim();
+  if (line.length > TW_CHAR_LIMIT) line = line.slice(0, TW_CHAR_LIMIT);
+  return line;
+}
+
+function enforceTwitterThread(content) {
+  const tweets = extractTwitterTweets(content);
+  if (!tweets.length) return (content || "").slice(0, TW_CHAR_LIMIT);
+  return tweets.map((tw, i) => tweetLine(tw.num || `${i + 1}/`, tw.text)).join("\n\n");
+}
+
+function calcMetrics(posts) {
+  const list = normalizePosts(posts);
+  const posted = list.filter((p) => p.posted);
+  const dm = {};
+  posted.forEach((p) => { dm[p.day] = 1; });
+  let streak = 0;
+  for (let i = 30; i >= 1; i--) {
+    if (dm[i]) streak++;
+    else break;
+  }
+  return {
+    totalPosts: list.length,
+    totalPosted: posted.length,
+    reach: list.reduce((s, p) => s + p.reach, 0),
+    likes: list.reduce((s, p) => s + p.likes, 0),
+    drafts: list.filter((p) => !p.posted).length,
+    streak,
+    byDay: Array.from({ length: 30 }, (_, i) => list.filter((p) => p.day === i + 1 && p.posted).length),
+  };
+}
+
+function fmtMetric(n) {
+  if (n > 999) return `${(n / 1000).toFixed(1)}K`;
+  return String(n);
+}
+
+function TwitterTweets({ content }) {
+  const tweets = extractTwitterTweets(content);
+  return (
+    <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 10 }}>
+      {tweets.map((tw, i) => {
+        const line = tweetLine(tw.num || `${i + 1}/`, tw.text);
+        const len = line.length;
+        const ok = len <= TW_CHAR_LIMIT;
+        return (
+          <div key={i} style={{ background: "#111", border: `1px solid ${ok ? "#1f2937" : "#dc262640"}`, borderRadius: 8, padding: "8px 10px" }}>
+            <p style={{ color: "#d1d5db", fontSize: 12, lineHeight: 1.7, margin: 0, whiteSpace: "pre-wrap", fontFamily: "Georgia,serif" }}>{line}</p>
+            <div style={{ color: ok ? "#22c55e" : "#ef4444", fontSize: 10, fontFamily: "monospace", marginTop: 6, fontWeight: 700 }}>
+              {len}/{TW_CHAR_LIMIT} {ok ? "✓" : "⚠ over limit (truncated on save)"}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function Dots() {
   return <span style={{display:"inline-flex",gap:4}}>
@@ -274,8 +365,14 @@ function Card({ post, onPosted, onDelete, onMetric }) {
         </div>
       </div>}
       <div style={{padding:"10px 13px 4px"}}>
-        <p style={{color:"#d1d5db",fontSize:13,lineHeight:1.85,fontFamily:"Georgia,serif",margin:0,whiteSpace:"pre-wrap"}}>{exp ? post.content : post.content.slice(0,220)}{!exp && post.content.length>220 && "…"}</p>
-        {post.content.length > 220 && <button onClick={()=>setExp(!exp)} style={{background:"none",border:"none",color:"#ec4899",fontSize:12,cursor:"pointer",fontFamily:"monospace"}}>{exp?"▲ less":"▼ read full"}</button>}
+        {post.pid === "twitter" ? (
+          <TwitterTweets content={post.content} />
+        ) : (
+          <>
+            <p style={{color:"#d1d5db",fontSize:13,lineHeight:1.85,fontFamily:"Georgia,serif",margin:0,whiteSpace:"pre-wrap"}}>{exp ? post.content : post.content.slice(0,220)}{!exp && post.content.length>220 && "…"}</p>
+            {post.content.length > 220 && <button onClick={()=>setExp(!exp)} style={{background:"none",border:"none",color:"#ec4899",fontSize:12,cursor:"pointer",fontFamily:"monospace"}}>{exp?"▲ less":"▼ read full"}</button>}
+          </>
+        )}
       </div>
       {sm && <div style={{margin:"0 13px 8px",padding:"9px",background:"#111",borderRadius:9,display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>
         <input value={reach} onChange={e=>setReach(e.target.value)} placeholder="Impressions" style={{flex:1,minWidth:80,padding:"6px 8px",background:"#0d0d0d",border:"1px solid #2d2d2d",borderRadius:6,color:"#e5e7eb",fontSize:12,fontFamily:"monospace",outline:"none"}}/>
@@ -302,7 +399,7 @@ function Card({ post, onPosted, onDelete, onMetric }) {
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────
 export default function ZeusAgent() {
   const [tab, setTab] = useState("cal");
-  const [posts, setPosts] = useState(lp);
+  const [posts, setPosts] = useState(() => lp());
   const [gen, setGen] = useState(null);
   const [gst, setGst] = useState("");
   const [toast, setToast] = useState(null);
@@ -324,17 +421,13 @@ export default function ZeusAgent() {
     t(); const id = setInterval(t, 30000); return () => clearInterval(id);
   }, []);
   useEffect(() => sp(posts), [posts]);
+  useEffect(() => {
+    if (tab === "metrics") setPosts(lp());
+  }, [tab]);
 
   const toast_ = (m, tp="ok") => { setToast({m,tp}); setTimeout(()=>setToast(null),3500); };
 
-  const mt = {
-    total: posts.filter(p=>p.posted).length,
-    reach: posts.reduce((s,p)=>s+(p.reach||0),0),
-    likes: posts.reduce((s,p)=>s+(p.likes||0),0),
-    drafts: posts.filter(p=>!p.posted).length,
-    streak: (()=>{const dm={};posts.filter(p=>p.posted).forEach(p=>{dm[p.day]=1;});let s=0;for(let i=30;i>=1;i--){if(dm[i])s++;else break;}return s;})(),
-    byDay: Array.from({length:30},(_,i)=>posts.filter(p=>p.day===i+1&&p.posted).length),
-  };
+  const mt = useMemo(() => calcMetrics(posts), [posts]);
 
   const doGen = async (entry) => {
     if (!oKey) { toast_("Add your OpenAI key in the 🔑 Keys tab first","err"); return; }
@@ -352,14 +445,15 @@ export default function ZeusAgent() {
             model:"gpt-4o",
             max_tokens:1000,
             messages:[
-              {role:"system",content:SYSTEM},
+              {role:"system",content:SYSTEM + (pid === "twitter" ? "\n\nTWITTER THREAD RULE: Each tweet line starting with 1/, 2/, etc. must be STRICTLY under 280 characters total (number prefix included). Count characters per tweet before you finish. Never exceed 280 on any single tweet." : "")},
               {role:"user",content:`PLATFORM: ${PLATFORMS.find(p=>p.id===pid)?.name}\nINSTRUCTIONS: ${INSTR[pid]||INSTR.linkedin}\nTOPIC: ${entry[4]}\nADDITIONAL CONTEXT: ${extra}`}
             ]
           })
         });
         const d = await r.json();
         if (d.error) throw new Error(d.error.message);
-        const content = d.choices?.[0]?.message?.content || "";
+        let content = d.choices?.[0]?.message?.content || "";
+        if (pid === "twitter") content = enforceTwitterThread(content);
         const img = (pid==="linkedin"||pid==="twitter") ? makeImg(entry[0],entry[1],entry[4],entry[5]) : null;
         np.push({id:`${Date.now()}_${pid}`,pid,day:entry[0],slot:entry[1],theme:entry[3],topic:entry[4],content,img,posted:false,reach:0,likes:0,createdAt:Date.now()});
       } catch(e) { toast_(`Error: ${e.message}`,"err"); }
@@ -386,7 +480,7 @@ export default function ZeusAgent() {
         <div style={{fontSize:9,color:"#4b5563",letterSpacing:2}}>GRASSION SOCIAL AGENT · NO PRODUCT MENTION UNTIL DAY 29</div>
       </div>
       <div style={{marginLeft:"auto",display:"flex",gap:5,flexWrap:"wrap"}}>
-        {[{t:`IST ${ist}`,c:"#22c55e",b:"#0a1a0a",pulse:true},{t:`${mt.total} posted`,c:"#ec4899",b:"#1a0010"},{t:`${mt.drafts} drafts`,c:"#3b82f6",b:"#0a0a1a"},{t:mt.streak>0?`🔥${mt.streak}d`:"",c:"#f97316",b:"#1a0a00"}].filter(x=>x.t).map((x,i)=>(
+        {[{t:`IST ${ist}`,c:"#22c55e",b:"#0a1a0a",pulse:true},{t:`${mt.totalPosted} posted`,c:"#ec4899",b:"#1a0010"},{t:`${mt.drafts} drafts`,c:"#3b82f6",b:"#0a0a1a"},{t:mt.streak>0?`🔥${mt.streak}d`:"",c:"#f97316",b:"#1a0a00"}].filter(x=>x.t).map((x,i)=>(
           <div key={i} style={{background:x.b,border:"1px solid "+x.c+"22",borderRadius:16,padding:"2px 9px",fontSize:10,color:x.c,display:"flex",alignItems:"center",gap:4}}>
             {x.pulse && <div style={{width:5,height:5,borderRadius:"50%",background:"#22c55e",animation:"pulse 2s infinite"}}/>}{x.t}
           </div>
@@ -406,7 +500,7 @@ export default function ZeusAgent() {
     </div>
 
     {/* Tabs */}
-    <div style={{display:"flex",borderBottom:"1px solid #161616",background:"#0a0a0a",padding:"0 15px",flexShrink:0}}>
+    <div style={{display:"flex",borderBottom:"1px solid #161616",background:"#0a0a0a",padding:"0 15px",flexShrink:0,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
       {[["cal","📅 Calendar"],["posts",`📄 Drafts (${posts.length})`],["metrics","📊 Metrics"]].map(([id,l])=>(
         <button key={id} onClick={()=>setTab(id)} style={{padding:"9px 13px",background:"none",border:"none",borderBottom:`2px solid ${tab===id?"#ec4899":"transparent"}`,color:tab===id?"#ec4899":"#4b5563",cursor:"pointer",fontSize:11,fontFamily:"monospace",whiteSpace:"nowrap"}}>{l}</button>
       ))}
@@ -484,7 +578,7 @@ export default function ZeusAgent() {
         {/* ── METRICS TAB ── */}
         {tab==="metrics" && <div style={{animation:"fu .2s"}}>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(105px,1fr))",gap:8,marginBottom:13}}>
-            {[["Posted",mt.total,"📤","#22c55e"],["Reach",mt.reach>999?`${(mt.reach/1000).toFixed(1)}K`:mt.reach||"—","👁","#3b82f6"],["Likes",mt.likes||"—","❤","#ec4899"],["Streak",mt.streak>0?`${mt.streak}d`:"—","🔥","#f97316"],["Drafts",mt.drafts,"📄","#a855f7"]].map(([l,v,ic,c])=>(
+            {[["Total posts",mt.totalPosts,"📝","#e5e7eb"],["Posted",mt.totalPosted,"📤","#22c55e"],["Reach",fmtMetric(mt.reach),"👁","#3b82f6"],["Likes",fmtMetric(mt.likes),"❤","#ec4899"],["Streak",mt.streak>0?`${mt.streak}d`:"0","🔥","#f97316"],["Drafts",mt.drafts,"📄","#a855f7"]].map(([l,v,ic,c])=>(
               <div key={l} style={{background:"#0d0d0d",border:`1px solid ${c}20`,borderRadius:11,padding:"10px 12px"}}>
                 <div style={{fontSize:16,marginBottom:4}}>{ic}</div>
                 <div style={{color:c,fontWeight:800,fontSize:20}}>{v}</div>
@@ -506,13 +600,16 @@ export default function ZeusAgent() {
           <div style={{background:"#0d0d0d",border:"1px solid #1f2937",borderRadius:12,padding:"13px 14px",marginBottom:11}}>
             <div style={{fontSize:10,color:"#6b7280",letterSpacing:2,marginBottom:10}}>BY PLATFORM</div>
             {PLATFORMS.map(pl=>{
-              const ct=posts.filter(p=>p.pid===pl.id&&p.posted).length;
-              const rc=posts.filter(p=>p.pid===pl.id).reduce((s,p)=>s+(p.reach||0),0);
+              const plat=posts.filter(p=>p.pid===pl.id);
+              const ct=plat.filter(p=>p.posted).length;
+              const total=plat.length;
+              const rc=plat.reduce((s,p)=>s+(Number(p.reach)||0),0);
+              const lk=plat.reduce((s,p)=>s+(Number(p.likes)||0),0);
               return<div key={pl.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,padding:"8px 11px",background:"#111",borderRadius:8}}>
                 <span style={{fontSize:13}}>{pl.emoji}</span>
                 <span style={{color:pl.color,fontSize:11,width:100,flexShrink:0}}>{pl.name}</span>
-                <span style={{color:ct>0?"#e5e7eb":"#374151",fontSize:11,flex:1}}>{ct} posts{rc>0?` · ${rc.toLocaleString()} reach`:""}</span>
-                <div style={{width:55,height:6,background:"#1f2937",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",background:pl.color,width:`${Math.min((ct/Math.max(mt.total,1))*100*3,100)}%`}}/></div>
+                <span style={{color:total>0?"#e5e7eb":"#374151",fontSize:11,flex:1}}>{total} total · {ct} posted{rc>0?` · ${rc.toLocaleString()} reach`:""}{lk>0?` · ${lk} likes`:""}</span>
+                <div style={{width:55,height:6,background:"#1f2937",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",background:pl.color,width:`${Math.min((ct/Math.max(mt.totalPosted,1))*100*3,100)}%`}}/></div>
               </div>;
             })}
           </div>

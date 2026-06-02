@@ -1290,7 +1290,7 @@ export default function GrassionHQ() {
   ];
 
   return (
-    <div style={{background:"#030303",height:"100vh",color:"#e5e7eb",display:"flex",flexDirection:"column",fontFamily:"'Segoe UI',system-ui,sans-serif",overflow:"hidden",position:"relative"}}>
+    <div style={{background:"#030303",height:"100%",minHeight:"100dvh",color:"#e5e7eb",display:"flex",flexDirection:"column",fontFamily:"'Segoe UI',system-ui,sans-serif",overflow:"hidden",position:"relative",paddingTop:"env(safe-area-inset-top,0)"}}>
       <style>{`*{box-sizing:border-box;} ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:#0a0a0a} ::-webkit-scrollbar-thumb{background:#374151;border-radius:4px} textarea{font-family:monospace}`}</style>
 
       {/* Header — fixed height, tabs scroll horizontally on mobile */}
