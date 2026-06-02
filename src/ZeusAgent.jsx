@@ -255,6 +255,10 @@ function enforceTwitterThread(content) {
   return tweets.map((tw, i) => tweetLine(tw.num || `${i + 1}/`, tw.text)).join("\n\n");
 }
 
+function getThreadLines(content) {
+  return extractTwitterTweets(content).map((tw, i) => tweetLine(tw.num || `${i + 1}/`, tw.text));
+}
+
 function calcMetrics(posts) {
   const list = normalizePosts(posts);
   const posted = list.filter((p) => p.posted);
@@ -281,23 +285,103 @@ function fmtMetric(n) {
   return String(n);
 }
 
-function TwitterTweets({ content }) {
-  const tweets = extractTwitterTweets(content);
+function TwitterTweets({ content, onCopyTweet }) {
+  const lines = getThreadLines(content);
   return (
     <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 10 }}>
-      {tweets.map((tw, i) => {
-        const line = tweetLine(tw.num || `${i + 1}/`, tw.text);
+      {lines.map((line, i) => {
         const len = line.length;
         const ok = len <= TW_CHAR_LIMIT;
         return (
           <div key={i} style={{ background: "#111", border: `1px solid ${ok ? "#1f2937" : "#dc262640"}`, borderRadius: 8, padding: "8px 10px" }}>
             <p style={{ color: "#d1d5db", fontSize: 12, lineHeight: 1.7, margin: 0, whiteSpace: "pre-wrap", fontFamily: "Georgia,serif" }}>{line}</p>
-            <div style={{ color: ok ? "#22c55e" : "#ef4444", fontSize: 10, fontFamily: "monospace", marginTop: 6, fontWeight: 700 }}>
-              {len}/{TW_CHAR_LIMIT} {ok ? "✓" : "⚠ over limit (truncated on save)"}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6, gap: 8 }}>
+              <span style={{ color: ok ? "#22c55e" : "#ef4444", fontSize: 10, fontFamily: "monospace", fontWeight: 700 }}>
+                {len}/{TW_CHAR_LIMIT} {ok ? "✓" : "⚠ over limit"}
+              </span>
+              {onCopyTweet && (
+                <button type="button" onClick={() => onCopyTweet(line, i)} style={{ background: "#1da1f222", border: "1px solid #1da1f244", color: "#60a5fa", padding: "3px 8px", borderRadius: 6, fontSize: 10, fontFamily: "monospace", cursor: "pointer" }}>
+                  Copy tweet {i + 1}
+                </button>
+              )}
             </div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ─── TWITTER THREAD POSTING MODAL ──────────────────────────────────────────
+function TwitterModal({ post, onClose, onDone }) {
+  const lines = getThreadLines(post.content);
+  const [idx, setIdx] = useState(0);
+  const [copied, setCopied] = useState(false);
+  const [doneSteps, setDoneSteps] = useState({});
+  const current = lines[idx] || "";
+  const len = current.length;
+  const ok = len <= TW_CHAR_LIMIT;
+  const isLast = idx >= lines.length - 1;
+
+  const copyTweet = () => {
+    navigator.clipboard.writeText(current).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const openX = () => {
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(current)}`, "_blank");
+    setDoneSteps((s) => ({ ...s, [idx]: true }));
+  };
+
+  const markDone = () => {
+    setDoneSteps((s) => ({ ...s, [idx]: true }));
+    if (!isLast) setIdx((i) => i + 1);
+    else { onDone(); onClose(); }
+  };
+
+  return (
+    <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: "fixed", inset: 0, background: "#000000f0", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 14 }}>
+      <div style={{ background: "#0d0d0d", border: "1px solid #1da1f240", borderRadius: 16, width: "100%", maxWidth: 520, maxHeight: "92vh", overflow: "auto" }}>
+        <div style={{ padding: "13px 18px", borderBottom: "1px solid #1a1a1a", display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 26, height: 26, background: "#1da1f2", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>🐦</div>
+          <div>
+            <div style={{ color: "#fff", fontFamily: "monospace", fontWeight: 700, fontSize: 12 }}>X Thread Assistant · Day {post.day} · {post.slot}</div>
+            <div style={{ color: "#6b7280", fontSize: 10, fontFamily: "monospace" }}>Tweet {idx + 1} of {lines.length}</div>
+          </div>
+          <button type="button" onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "1px solid #2d2d2d", color: "#6b7280", padding: "4px 11px", borderRadius: 7, cursor: "pointer", fontSize: 11 }}>✕</button>
+        </div>
+        <div style={{ padding: 16 }}>
+          <div style={{ display: "flex", gap: 4, marginBottom: 12, flexWrap: "wrap" }}>
+            {lines.map((_, i) => (
+              <button key={i} type="button" onClick={() => setIdx(i)} style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${idx === i ? "#1da1f2" : doneSteps[i] ? "#22c55e44" : "#2d2d2d"}`, background: idx === i ? "#1da1f222" : doneSteps[i] ? "#22c55e15" : "#111", color: idx === i ? "#60a5fa" : doneSteps[i] ? "#22c55e" : "#6b7280", fontSize: 11, fontFamily: "monospace", cursor: "pointer", fontWeight: 700 }}>
+                {doneSteps[i] ? "✓" : i + 1}
+              </button>
+            ))}
+          </div>
+          {post.img && idx === 0 && (
+            <img src={post.img} alt="" style={{ width: "100%", borderRadius: 9, border: "1px solid #1f2937", marginBottom: 10 }} />
+          )}
+          <div style={{ background: "#111", border: `1px solid ${ok ? "#1f2937" : "#dc2626"}`, borderRadius: 10, padding: 12, marginBottom: 10 }}>
+            <p style={{ color: "#e5e7eb", fontSize: 13, lineHeight: 1.75, margin: 0, whiteSpace: "pre-wrap", fontFamily: "Georgia,serif" }}>{current}</p>
+            <div style={{ color: ok ? "#22c55e" : "#ef4444", fontSize: 10, fontFamily: "monospace", marginTop: 8, fontWeight: 700 }}>{len}/{TW_CHAR_LIMIT}</div>
+          </div>
+          <div style={{ color: "#9ca3af", fontSize: 11, fontFamily: "monospace", lineHeight: 1.6, marginBottom: 12, padding: 10, background: "#0a0a1a", borderRadius: 8, border: "1px solid #1da1f220" }}>
+            {idx === 0
+              ? "① Copy tweet → ② Open X → ③ Paste & Post (attach image on tweet 1 if you have one)"
+              : "① On X, click Reply on your previous tweet → ② Paste this tweet → ③ Post → repeat for each tweet"}
+          </div>
+          <button type="button" onClick={copyTweet} style={{ width: "100%", padding: 10, background: copied ? "#22c55e15" : "#1da1f2", border: `1.5px solid ${copied ? "#22c55e" : "#1da1f2"}`, borderRadius: 9, color: copied ? "#22c55e" : "#fff", fontSize: 12, fontFamily: "monospace", fontWeight: 700, cursor: "pointer", marginBottom: 8 }}>
+            {copied ? "✓ Copied!" : `📋 Copy tweet ${idx + 1}`}
+          </button>
+          <button type="button" onClick={openX} style={{ width: "100%", padding: 10, background: "#1da1f212", border: "1.5px solid #1da1f2", borderRadius: 9, color: "#60a5fa", fontSize: 12, fontFamily: "monospace", fontWeight: 700, cursor: "pointer", marginBottom: 8 }}>
+            🔗 Open X to post tweet {idx + 1}
+          </button>
+          <button type="button" onClick={markDone} style={{ width: "100%", padding: 10, background: "#22c55e", border: "none", borderRadius: 9, color: "#000", fontSize: 12, fontFamily: "monospace", fontWeight: 700, cursor: "pointer" }}>
+            {isLast ? "✓ Done — full thread posted!" : `✓ Tweet ${idx + 1} posted → next`}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -366,16 +450,22 @@ function Modal({ post, onClose, onDone }) {
 function Card({ post, onPosted, onDelete, onMetric }) {
   const [exp, setExp] = useState(false);
   const [li, setLi] = useState(false);
+  const [tw, setTw] = useState(false);
   const [sm, setSm] = useState(false);
   const [reach, setReach] = useState(post.reach || "");
   const [likes, setLikes] = useState(post.likes || "");
   const [cp, setCp] = useState(false);
+  const [copyN, setCopyN] = useState(null);
   const p = PLATFORMS.find(pl => pl.id === post.pid);
   const isLI = post.pid === "linkedin";
+  const isTw = post.pid === "twitter";
+  const threadLines = isTw ? getThreadLines(post.content) : [];
   const openP = () => { navigator.clipboard.writeText(post.content).catch(()=>{}); setCp(true); setTimeout(()=>setCp(false),2500); onPosted(post.id); };
+  const copyOneTweet = (line, i) => { navigator.clipboard.writeText(line).catch(()=>{}); setCopyN(i); setTimeout(()=>setCopyN(null), 2000); };
   const acc = wc(post.day);
   return <>
     {li && <Modal post={post} onClose={()=>setLi(false)} onDone={()=>onPosted(post.id)}/>}
+    {tw && <TwitterModal post={post} onClose={()=>setTw(false)} onDone={()=>onPosted(post.id)}/>}
     <div style={{background:"#0d0d0d",border:`1px solid ${post.posted?"#22c55e28":"#1f2937"}`,borderRadius:13,overflow:"hidden"}}>
       <div style={{padding:"9px 13px",display:"flex",alignItems:"center",gap:7,borderBottom:"1px solid #161616",flexWrap:"wrap"}}>
         <span>{p?.emoji}</span>
@@ -388,17 +478,36 @@ function Card({ post, onPosted, onDelete, onMetric }) {
         <img src={post.img} alt="" style={{width:"100%",borderRadius:9,border:"1px solid #1f2937",cursor:isLI?"pointer":"default",display:"block"}} onClick={isLI?()=>setLi(true):undefined}/>
         {isLI && <div style={{position:"absolute",bottom:9,left:21,background:"#0077b5cc",borderRadius:7,padding:"4px 10px",color:"#fff",fontSize:11,fontFamily:"monospace",cursor:"pointer"}} onClick={()=>setLi(true)}>Click → posting assistant</div>}
       </div>}
-      {!isLI && <div style={{margin:"8px 13px 0",padding:"8px 11px",background:(p?.color||"#555")+"10",border:`1px solid ${(p?.color||"#555")}25`,borderRadius:8}}>
+      {!isLI && !isTw && <div style={{margin:"8px 13px 0",padding:"8px 11px",background:(p?.color||"#555")+"10",border:`1px solid ${(p?.color||"#555")}25`,borderRadius:8}}>
         <div style={{color:p?.color,fontSize:10,fontFamily:"monospace",fontWeight:700,marginBottom:3}}>HOW TO POST ON {p?.name?.toUpperCase()}</div>
         <div style={{color:"#6b7280",fontSize:11,fontFamily:"monospace"}}>
-          {post.pid==="twitter"?"① Click Open Twitter → first tweet pre-filled ② Add remaining tweets manually ③ Attach image → Post all"
-          :post.pid==="reddit"?"① Click Open Reddit → title + body pre-filled ② Review and submit"
+          {post.pid==="reddit"?"① Click Open Reddit → title + body pre-filled ② Review and submit"
           :"① Click Open → ② Paste content → ③ Add image → Publish"}
         </div>
       </div>}
+      {isTw && (
+        <div style={{ margin: "8px 13px 0", padding: "8px 11px", background: "#1da1f210", border: "1px solid #1da1f230", borderRadius: 8 }}>
+          <div style={{ color: "#60a5fa", fontSize: 10, fontFamily: "monospace", fontWeight: 700, marginBottom: 3 }}>X THREAD · {threadLines.length} TWEETS</div>
+          <div style={{ color: "#9ca3af", fontSize: 11, fontFamily: "monospace" }}>Use <strong style={{ color: "#60a5fa" }}>Thread Assistant</strong> below — post tweet 1, then reply with tweet 2, 3, …</div>
+        </div>
+      )}
       <div style={{padding:"10px 13px 4px"}}>
-        {post.pid === "twitter" ? (
-          <TwitterTweets content={post.content} />
+        {isTw ? (
+          <>
+            {!exp && threadLines[0] && (
+              <div style={{ background: "#111", border: "1px solid #1f2937", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
+                <p style={{ color: "#d1d5db", fontSize: 12, lineHeight: 1.7, margin: 0, fontFamily: "Georgia,serif" }}>{threadLines[0]}</p>
+                <div style={{ color: "#22c55e", fontSize: 10, fontFamily: "monospace", marginTop: 6 }}>{threadLines[0].length}/{TW_CHAR_LIMIT} ✓ · +{threadLines.length - 1} more in thread</div>
+              </div>
+            )}
+            {exp && <TwitterTweets content={post.content} onCopyTweet={copyOneTweet} />}
+            {threadLines.length > 1 && (
+              <button type="button" onClick={() => setExp(!exp)} style={{ background: "none", border: "none", color: "#1da1f2", fontSize: 12, cursor: "pointer", fontFamily: "monospace", marginBottom: 4 }}>
+                {exp ? "▲ Collapse thread" : `▼ Show all ${threadLines.length} tweets`}
+              </button>
+            )}
+            {copyN !== null && <div style={{ color: "#22c55e", fontSize: 10, fontFamily: "monospace", marginBottom: 4 }}>✓ Tweet {copyN + 1} copied</div>}
+          </>
         ) : (
           <>
             <p style={{color:"#d1d5db",fontSize:13,lineHeight:1.85,fontFamily:"Georgia,serif",margin:0,whiteSpace:"pre-wrap"}}>{exp ? post.content : post.content.slice(0,220)}{!exp && post.content.length>220 && "…"}</p>
@@ -417,7 +526,9 @@ function Card({ post, onPosted, onDelete, onMetric }) {
       </div>}
       <div style={{padding:"8px 13px 12px",display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>
         {isLI
-          ? <button onClick={()=>setLi(true)} style={{padding:"8px 14px",background:"#0077b5",border:"none",borderRadius:8,color:"#fff",fontSize:12,fontFamily:"monospace",fontWeight:700,cursor:"pointer"}}>💼 LinkedIn Assistant</button>
+          ? <button type="button" onClick={()=>setLi(true)} style={{padding:"8px 14px",background:"#0077b5",border:"none",borderRadius:8,color:"#fff",fontSize:12,fontFamily:"monospace",fontWeight:700,cursor:"pointer"}}>💼 LinkedIn Assistant</button>
+          : isTw
+          ? <button type="button" onClick={()=>setTw(true)} style={{padding:"8px 14px",background:"#1da1f2",border:"none",borderRadius:8,color:"#fff",fontSize:12,fontFamily:"monospace",fontWeight:700,cursor:"pointer"}}>🐦 Thread Assistant — post on X</button>
           : <a href={p?.url(post.content)||"#"} target="_blank" rel="noreferrer" onClick={openP} style={{padding:"8px 14px",background:cp?"#22c55e":(p?.color||"#555"),color:cp?"#000":"#fff",borderRadius:8,textDecoration:"none",fontSize:12,fontFamily:"monospace",fontWeight:700,transition:"background .2s"}}>
               {cp ? "✓ Copied! Open the tab" : `🔗 Open ${p?.name}`}
             </a>}
