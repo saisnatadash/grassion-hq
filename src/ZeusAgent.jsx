@@ -82,7 +82,8 @@ CRITICAL FORMAT RULES — follow these exactly or the post fails:
 // ─── PLATFORM INSTRUCTIONS ────────────────────────────────────────────────
 const INSTR = {
   linkedin: `LinkedIn post. 700 to 1000 characters. Start with a single punchy line that stops the scroll — a specific dollar amount, a provocative observation, or a stat that surprises. Then 3 short paragraphs of plain prose. End with one question that makes CTOs uncomfortable in a good way. Max 3 hashtags at the very end. No bullet points. No asterisks. Conversational paragraphs only.`,
-  twitter: `Twitter thread. 8 tweets numbered 1/ through 8/. CRITICAL: each tweet line must be STRICTLY under 280 characters total including the "1/" prefix — count every character. If unsure, write shorter. First tweet is the hook — scroll-stopping, specific. Build tension tweet by tweet. Last tweet is a question or sharp insight. Plain text sentences only, no formatting characters.`,
+  twitter: `Twitter/X THREAD. Write 4 to 8 tweets numbered 1/ through 8/ (one number per tweet). CRITICAL: each tweet line must be STRICTLY under 280 characters total including the "1/" prefix. First tweet is the hook. Build tension tweet by tweet. Last tweet is a question or sharp insight. Plain text only.`,
+  twitter_single: `Single Twitter/X post. ONE tweet only — no thread, no numbering (never write 1/ or 2/). Under 270 characters total. One complete punchy thought: hook, insight, optional question. Plain text only.`,
   reddit: `Reddit r/SaaS post. First line is the title. Then body text in plain conversational paragraphs. Honest founder voice. Can hint at building something. No spam. Reads like a genuine observation from someone who works in engineering.`,
   devto: `Dev.to article. First line is a punchy article title. Then 700 to 900 words of plain prose with clear paragraph breaks. No markdown headers, no bullet points. Write naturally like a blog post, not a listicle. End with a question for the reader.`,
   hn: `Hacker News submission. Show HN or Ask HN format. Under 200 words total. Completely factual. Zero hype. Reads like an engineer wrote it. Plain text only.`,
@@ -255,8 +256,61 @@ function enforceTwitterThread(content) {
   return tweets.map((tw, i) => tweetLine(tw.num || `${i + 1}/`, tw.text)).join("\n\n");
 }
 
-function getThreadLines(content) {
+const TW_FORMAT_OPTS = [
+  { id: "auto", label: "🤖 AI picks", hint: "Recommends single or thread per topic" },
+  { id: "single", label: "💬 Single", hint: "One tweet under 280 chars" },
+  { id: "thread", label: "🧵 Thread", hint: "4–8 numbered tweets" },
+];
+
+function inferXFormat(content) {
+  const text = (content || "").trim();
+  if (!text) return "single";
+  const markers = text.match(/(?:^|\n)\d+\/\s/gm);
+  return markers && markers.length > 1 ? "thread" : "single";
+}
+
+function resolveXFormat(post) {
+  if (post.xFormat === "single" || post.xFormat === "thread") return post.xFormat;
+  return inferXFormat(post.content);
+}
+
+function normalizeTwitterContent(content, format) {
+  let t = (content || "").trim();
+  if (format === "single") {
+    t = t.split(/\n\n+/)[0]?.replace(/^\d+\/\s*/, "").trim() || t.replace(/^\d+\/\s*/, "").trim();
+    if (t.length > TW_CHAR_LIMIT) t = t.slice(0, TW_CHAR_LIMIT);
+    return t;
+  }
+  return enforceTwitterThread(t);
+}
+
+function getXLines(content, format) {
+  const fmt = format || inferXFormat(content);
+  if (fmt === "single") return [normalizeTwitterContent(content, "single")];
   return extractTwitterTweets(content).map((tw, i) => tweetLine(tw.num || `${i + 1}/`, tw.text));
+}
+
+async function recommendTwitterFormat(key, topic, extra, entry) {
+  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      max_tokens: 8,
+      temperature: 0,
+      messages: [
+        { role: "system", content: "Reply with exactly one word: SINGLE or THREAD. SINGLE for hot takes, one stat, launch punch, teaser, emotional one-liner. THREAD for multi-step stories, lists, debates, or topics needing 4+ beats." },
+        { role: "user", content: `Day ${entry[0]} ${entry[1]} · Theme: ${entry[3]}\nTopic: ${topic}\n${extra}` },
+      ],
+    }),
+  });
+  const d = await r.json();
+  const word = (d.choices?.[0]?.message?.content || "THREAD").toUpperCase();
+  return word.includes("SINGLE") ? "single" : "thread";
+}
+
+function twitterInstr(format) {
+  return format === "single" ? INSTR.twitter_single : INSTR.twitter;
 }
 
 function calcMetrics(posts) {
@@ -285,8 +339,8 @@ function fmtMetric(n) {
   return String(n);
 }
 
-function TwitterTweets({ content, onCopyTweet }) {
-  const lines = getThreadLines(content);
+function TwitterTweets({ content, format, onCopyTweet }) {
+  const lines = getXLines(content, format);
   return (
     <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 10 }}>
       {lines.map((line, i) => {
@@ -314,7 +368,9 @@ function TwitterTweets({ content, onCopyTweet }) {
 
 // ─── TWITTER THREAD POSTING MODAL ──────────────────────────────────────────
 function TwitterModal({ post, onClose, onDone }) {
-  const lines = getThreadLines(post.content);
+  const xFmt = resolveXFormat(post);
+  const lines = getXLines(post.content, xFmt);
+  const isSingle = xFmt === "single";
   const [idx, setIdx] = useState(0);
   const [copied, setCopied] = useState(false);
   const [doneSteps, setDoneSteps] = useState({});
@@ -346,19 +402,21 @@ function TwitterModal({ post, onClose, onDone }) {
         <div style={{ padding: "13px 18px", borderBottom: "1px solid #1a1a1a", display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ width: 26, height: 26, background: "#1da1f2", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>🐦</div>
           <div>
-            <div style={{ color: "#fff", fontFamily: "monospace", fontWeight: 700, fontSize: 12 }}>X Thread Assistant · Day {post.day} · {post.slot}</div>
-            <div style={{ color: "#6b7280", fontSize: 10, fontFamily: "monospace" }}>Tweet {idx + 1} of {lines.length}</div>
+            <div style={{ color: "#fff", fontFamily: "monospace", fontWeight: 700, fontSize: 12 }}>{isSingle ? "Post on X" : "X Thread Assistant"} · Day {post.day} · {post.slot}</div>
+            <div style={{ color: "#6b7280", fontSize: 10, fontFamily: "monospace" }}>{isSingle ? "Single tweet" : `Tweet ${idx + 1} of ${lines.length}`}</div>
           </div>
           <button type="button" onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "1px solid #2d2d2d", color: "#6b7280", padding: "4px 11px", borderRadius: 7, cursor: "pointer", fontSize: 11 }}>✕</button>
         </div>
         <div style={{ padding: 16 }}>
-          <div style={{ display: "flex", gap: 4, marginBottom: 12, flexWrap: "wrap" }}>
-            {lines.map((_, i) => (
-              <button key={i} type="button" onClick={() => setIdx(i)} style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${idx === i ? "#1da1f2" : doneSteps[i] ? "#22c55e44" : "#2d2d2d"}`, background: idx === i ? "#1da1f222" : doneSteps[i] ? "#22c55e15" : "#111", color: idx === i ? "#60a5fa" : doneSteps[i] ? "#22c55e" : "#6b7280", fontSize: 11, fontFamily: "monospace", cursor: "pointer", fontWeight: 700 }}>
-                {doneSteps[i] ? "✓" : i + 1}
-              </button>
-            ))}
-          </div>
+          {!isSingle && (
+            <div style={{ display: "flex", gap: 4, marginBottom: 12, flexWrap: "wrap" }}>
+              {lines.map((_, i) => (
+                <button key={i} type="button" onClick={() => setIdx(i)} style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${idx === i ? "#1da1f2" : doneSteps[i] ? "#22c55e44" : "#2d2d2d"}`, background: idx === i ? "#1da1f222" : doneSteps[i] ? "#22c55e15" : "#111", color: idx === i ? "#60a5fa" : doneSteps[i] ? "#22c55e" : "#6b7280", fontSize: 11, fontFamily: "monospace", cursor: "pointer", fontWeight: 700 }}>
+                  {doneSteps[i] ? "✓" : i + 1}
+                </button>
+              ))}
+            </div>
+          )}
           {post.img && idx === 0 && (
             <img src={post.img} alt="" style={{ width: "100%", borderRadius: 9, border: "1px solid #1f2937", marginBottom: 10 }} />
           )}
@@ -367,7 +425,9 @@ function TwitterModal({ post, onClose, onDone }) {
             <div style={{ color: ok ? "#22c55e" : "#ef4444", fontSize: 10, fontFamily: "monospace", marginTop: 8, fontWeight: 700 }}>{len}/{TW_CHAR_LIMIT}</div>
           </div>
           <div style={{ color: "#9ca3af", fontSize: 11, fontFamily: "monospace", lineHeight: 1.6, marginBottom: 12, padding: 10, background: "#0a0a1a", borderRadius: 8, border: "1px solid #1da1f220" }}>
-            {idx === 0
+            {isSingle
+              ? "① Copy → ② Open X → ③ Paste & Post (add image if you have one)"
+              : idx === 0
               ? "① Copy tweet → ② Open X → ③ Paste & Post (attach image on tweet 1 if you have one)"
               : "① On X, click Reply on your previous tweet → ② Paste this tweet → ③ Post → repeat for each tweet"}
           </div>
@@ -378,7 +438,7 @@ function TwitterModal({ post, onClose, onDone }) {
             🔗 Open X to post tweet {idx + 1}
           </button>
           <button type="button" onClick={markDone} style={{ width: "100%", padding: 10, background: "#22c55e", border: "none", borderRadius: 9, color: "#000", fontSize: 12, fontFamily: "monospace", fontWeight: 700, cursor: "pointer" }}>
-            {isLast ? "✓ Done — full thread posted!" : `✓ Tweet ${idx + 1} posted → next`}
+            {isSingle || isLast ? "✓ Done — posted on X!" : `✓ Tweet ${idx + 1} posted → next`}
           </button>
         </div>
       </div>
@@ -459,7 +519,9 @@ function Card({ post, onPosted, onDelete, onMetric }) {
   const p = PLATFORMS.find(pl => pl.id === post.pid);
   const isLI = post.pid === "linkedin";
   const isTw = post.pid === "twitter";
-  const threadLines = isTw ? getThreadLines(post.content) : [];
+  const xFmt = isTw ? resolveXFormat(post) : null;
+  const isTwSingle = isTw && xFmt === "single";
+  const threadLines = isTw ? getXLines(post.content, xFmt) : [];
   const openP = () => { navigator.clipboard.writeText(post.content).catch(()=>{}); setCp(true); setTimeout(()=>setCp(false),2500); onPosted(post.id); };
   const copyOneTweet = (line, i) => { navigator.clipboard.writeText(line).catch(()=>{}); setCopyN(i); setTimeout(()=>setCopyN(null), 2000); };
   const acc = wc(post.day);
@@ -472,6 +534,7 @@ function Card({ post, onPosted, onDelete, onMetric }) {
         <span style={{color:p?.color,fontFamily:"monospace",fontSize:12,fontWeight:700}}>{p?.name}</span>
         <span style={{background:"#1a1a1a",color:"#6b7280",fontSize:10,padding:"2px 7px",borderRadius:5,fontFamily:"monospace"}}>Day {post.day} · {post.slot}</span>
         <span style={{background:acc+"18",color:acc,fontSize:10,padding:"2px 7px",borderRadius:5,fontFamily:"monospace"}}>{post.theme}</span>
+        {isTw && <span style={{background:"#1da1f218",color:"#60a5fa",fontSize:10,padding:"2px 7px",borderRadius:5,fontFamily:"monospace"}}>{isTwSingle ? "💬 Single" : "🧵 Thread"}</span>}
         {post.posted && <span style={{background:"#22c55e12",color:"#22c55e",fontSize:10,padding:"2px 7px",borderRadius:6,fontFamily:"monospace",marginLeft:"auto"}}>✓ POSTED</span>}
       </div>
       {post.img && <div style={{padding:"9px 13px 0",position:"relative"}}>
@@ -487,26 +550,35 @@ function Card({ post, onPosted, onDelete, onMetric }) {
       </div>}
       {isTw && (
         <div style={{ margin: "8px 13px 0", padding: "8px 11px", background: "#1da1f210", border: "1px solid #1da1f230", borderRadius: 8 }}>
-          <div style={{ color: "#60a5fa", fontSize: 10, fontFamily: "monospace", fontWeight: 700, marginBottom: 3 }}>X THREAD · {threadLines.length} TWEETS</div>
-          <div style={{ color: "#9ca3af", fontSize: 11, fontFamily: "monospace" }}>Use <strong style={{ color: "#60a5fa" }}>Thread Assistant</strong> below — post tweet 1, then reply with tweet 2, 3, …</div>
+          <div style={{ color: "#60a5fa", fontSize: 10, fontFamily: "monospace", fontWeight: 700, marginBottom: 3 }}>{isTwSingle ? "X · SINGLE TWEET" : `X THREAD · ${threadLines.length} TWEETS`}</div>
+          <div style={{ color: "#9ca3af", fontSize: 11, fontFamily: "monospace" }}>{isTwSingle ? "One click to copy and post on X." : "Use Thread Assistant — post tweet 1, then reply with 2, 3, …"}</div>
         </div>
       )}
       <div style={{padding:"10px 13px 4px"}}>
         {isTw ? (
           <>
-            {!exp && threadLines[0] && (
+            {isTwSingle ? (
               <div style={{ background: "#111", border: "1px solid #1f2937", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
-                <p style={{ color: "#d1d5db", fontSize: 12, lineHeight: 1.7, margin: 0, fontFamily: "Georgia,serif" }}>{threadLines[0]}</p>
-                <div style={{ color: "#22c55e", fontSize: 10, fontFamily: "monospace", marginTop: 6 }}>{threadLines[0].length}/{TW_CHAR_LIMIT} ✓ · +{threadLines.length - 1} more in thread</div>
+                <p style={{ color: "#d1d5db", fontSize: 13, lineHeight: 1.75, margin: 0, fontFamily: "Georgia,serif", whiteSpace: "pre-wrap" }}>{threadLines[0]}</p>
+                <div style={{ color: threadLines[0]?.length <= TW_CHAR_LIMIT ? "#22c55e" : "#ef4444", fontSize: 10, fontFamily: "monospace", marginTop: 6, fontWeight: 700 }}>{threadLines[0]?.length || 0}/{TW_CHAR_LIMIT} ✓</div>
               </div>
+            ) : (
+              <>
+                {!exp && threadLines[0] && (
+                  <div style={{ background: "#111", border: "1px solid #1f2937", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
+                    <p style={{ color: "#d1d5db", fontSize: 12, lineHeight: 1.7, margin: 0, fontFamily: "Georgia,serif" }}>{threadLines[0]}</p>
+                    <div style={{ color: "#22c55e", fontSize: 10, fontFamily: "monospace", marginTop: 6 }}>{threadLines[0].length}/{TW_CHAR_LIMIT} ✓ · +{threadLines.length - 1} more in thread</div>
+                  </div>
+                )}
+                {exp && <TwitterTweets content={post.content} format={xFmt} onCopyTweet={copyOneTweet} />}
+                {threadLines.length > 1 && (
+                  <button type="button" onClick={() => setExp(!exp)} style={{ background: "none", border: "none", color: "#1da1f2", fontSize: 12, cursor: "pointer", fontFamily: "monospace", marginBottom: 4 }}>
+                    {exp ? "▲ Collapse thread" : `▼ Show all ${threadLines.length} tweets`}
+                  </button>
+                )}
+              </>
             )}
-            {exp && <TwitterTweets content={post.content} onCopyTweet={copyOneTweet} />}
-            {threadLines.length > 1 && (
-              <button type="button" onClick={() => setExp(!exp)} style={{ background: "none", border: "none", color: "#1da1f2", fontSize: 12, cursor: "pointer", fontFamily: "monospace", marginBottom: 4 }}>
-                {exp ? "▲ Collapse thread" : `▼ Show all ${threadLines.length} tweets`}
-              </button>
-            )}
-            {copyN !== null && <div style={{ color: "#22c55e", fontSize: 10, fontFamily: "monospace", marginBottom: 4 }}>✓ Tweet {copyN + 1} copied</div>}
+            {copyN !== null && <div style={{ color: "#22c55e", fontSize: 10, fontFamily: "monospace", marginBottom: 4 }}>✓ {isTwSingle ? "Tweet copied" : `Tweet ${copyN + 1} copied`}</div>}
           </>
         ) : (
           <>
@@ -528,7 +600,7 @@ function Card({ post, onPosted, onDelete, onMetric }) {
         {isLI
           ? <button type="button" onClick={()=>setLi(true)} style={{padding:"8px 14px",background:"#0077b5",border:"none",borderRadius:8,color:"#fff",fontSize:12,fontFamily:"monospace",fontWeight:700,cursor:"pointer"}}>💼 LinkedIn Assistant</button>
           : isTw
-          ? <button type="button" onClick={()=>setTw(true)} style={{padding:"8px 14px",background:"#1da1f2",border:"none",borderRadius:8,color:"#fff",fontSize:12,fontFamily:"monospace",fontWeight:700,cursor:"pointer"}}>🐦 Thread Assistant — post on X</button>
+          ? <button type="button" onClick={()=>setTw(true)} style={{padding:"8px 14px",background:"#1da1f2",border:"none",borderRadius:8,color:"#fff",fontSize:12,fontFamily:"monospace",fontWeight:700,cursor:"pointer"}}>{isTwSingle ? "🐦 Post on X" : "🐦 Thread Assistant"}</button>
           : <a href={p?.url(post.content)||"#"} target="_blank" rel="noreferrer" onClick={openP} style={{padding:"8px 14px",background:cp?"#22c55e":(p?.color||"#555"),color:cp?"#000":"#fff",borderRadius:8,textDecoration:"none",fontSize:12,fontFamily:"monospace",fontWeight:700,transition:"background .2s"}}>
               {cp ? "✓ Copied! Open the tab" : `🔗 Open ${p?.name}`}
             </a>}
@@ -547,6 +619,9 @@ export default function ZeusAgent() {
   const [gst, setGst] = useState("");
   const [toast, setToast] = useState(null);
   const [sel, setSel] = useState(["linkedin","twitter"]);
+  const [xFormat, setXFormat] = useState(() => {
+    try { return localStorage.getItem("zeus_x_format") || "auto"; } catch { return "auto"; }
+  });
   const [day, setDay] = useState(1);
   const [filt, setFilt] = useState("all");
   const [ist, setIst] = useState("");
@@ -591,15 +666,31 @@ export default function ZeusAgent() {
       setGst(`Writing ${pname}…`);
       try {
         const extra = EXTRA[entry[4]] || `Write about: "${entry[4]}". ${entry[3]==="LAUNCH"||entry[3]==="POST-LAUNCH"?"Include grassion.com at the end.":"No product promotion whatsoever."}`;
+        let twFmt = null;
+        if (pid === "twitter") {
+          twFmt = xFormat;
+          if (twFmt === "auto") {
+            setGst("AI picking single vs thread…");
+            twFmt = await recommendTwitterFormat(key, entry[4], extra, entry);
+            toast_(`AI recommends: ${twFmt === "thread" ? "🧵 Thread" : "💬 Single tweet"}`, "ok");
+          }
+          setGst(`Writing ${pname} (${twFmt})…`);
+        }
+        const instr = pid === "twitter" ? twitterInstr(twFmt) : (INSTR[pid] || INSTR.linkedin);
+        const twSystem = pid === "twitter"
+          ? (twFmt === "single"
+            ? "\n\nSINGLE TWEET RULE: One tweet only. No 1/ numbering. Under 270 characters."
+            : "\n\nTHREAD RULE: Each numbered tweet must be STRICTLY under 280 characters including the number prefix.")
+          : "";
         const r = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
           body: JSON.stringify({
             model: "gpt-4o-mini",
-            max_tokens: pid === "twitter" ? 2500 : 1500,
+            max_tokens: pid === "twitter" ? (twFmt === "single" ? 400 : 2500) : 1500,
             messages: [
-              { role: "system", content: SYSTEM + (pid === "twitter" ? "\n\nTWITTER THREAD RULE: Each tweet line starting with 1/, 2/, etc. must be STRICTLY under 280 characters total (number prefix included). Count characters per tweet before you finish. Never exceed 280 on any single tweet." : "") },
-              { role: "user", content: `PLATFORM: ${pname}\nINSTRUCTIONS: ${INSTR[pid] || INSTR.linkedin}\nTOPIC: ${entry[4]}\nADDITIONAL CONTEXT: ${extra}` },
+              { role: "system", content: SYSTEM + twSystem },
+              { role: "user", content: `PLATFORM: ${pname}\nINSTRUCTIONS: ${instr}\nTOPIC: ${entry[4]}\nADDITIONAL CONTEXT: ${extra}` },
             ],
           }),
         });
@@ -608,12 +699,12 @@ export default function ZeusAgent() {
         if (d.error) throw new Error(d.error.message);
         let content = (d.choices?.[0]?.message?.content || "").trim();
         if (!content) throw new Error("OpenAI returned empty content");
-        if (pid === "twitter") content = enforceTwitterThread(content);
+        if (pid === "twitter") content = normalizeTwitterContent(content, twFmt);
         let img = null;
         if (pid === "linkedin" || pid === "twitter") {
           try { img = makeImg(entry[0], entry[1], entry[4], entry[5]); } catch { /* image optional */ }
         }
-        np.push({ id: `${Date.now()}_${pid}`, pid, day: entry[0], slot: entry[1], theme: entry[3], topic: entry[4], content, img, posted: false, reach: 0, likes: 0, createdAt: Date.now() });
+        np.push({ id: `${Date.now()}_${pid}`, pid, day: entry[0], slot: entry[1], theme: entry[3], topic: entry[4], content, img, xFormat: twFmt || undefined, posted: false, reach: 0, likes: 0, createdAt: Date.now() });
       } catch (e) {
         failed.push(`${pname}: ${e.message}`);
         toast_(`${pname} failed: ${e.message}`, "err");
@@ -698,6 +789,28 @@ export default function ZeusAgent() {
               );})}
             </div>
           </div>
+          {sel.includes("twitter") && (
+            <div style={{ background: "#0d0d0d", border: "1px solid #1da1f330", borderRadius: 12, padding: "12px 14px", marginBottom: 10 }}>
+              <div style={{ fontSize: 10, color: "#6b7280", letterSpacing: 2, marginBottom: 8 }}>X / TWITTER FORMAT</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {TW_FORMAT_OPTS.map((o) => {
+                  const on = xFormat === o.id;
+                  return (
+                    <button
+                      key={o.id}
+                      type="button"
+                      title={o.hint}
+                      onClick={() => { setXFormat(o.id); try { localStorage.setItem("zeus_x_format", o.id); } catch {} }}
+                      style={{ padding: "6px 12px", borderRadius: 16, border: `1.5px solid ${on ? "#1da1f2" : "#2d2d2d"}`, background: on ? "#1da1f222" : "transparent", color: on ? "#60a5fa" : "#6b7280", fontSize: 11, fontFamily: "monospace", cursor: "pointer", fontWeight: on ? 700 : 400 }}
+                    >
+                      {o.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ color: "#4b5563", fontSize: 10, fontFamily: "monospace", marginTop: 8 }}>{TW_FORMAT_OPTS.find((o) => o.id === xFormat)?.hint}</div>
+            </div>
+          )}
           <div style={{background:"#0d0d0d",border:"1px solid #1f2937",borderRadius:12,padding:"12px 14px",marginBottom:10}}>
             <div style={{fontSize:10,color:"#6b7280",letterSpacing:2,marginBottom:8}}>SELECT DAY (1–30)</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
@@ -726,7 +839,7 @@ export default function ZeusAgent() {
               </div>
               {sp.length>0 && <div style={{marginBottom:9,padding:"8px 11px",background:"#111",borderRadius:8}}>
                 <div style={{color:"#22c55e",fontSize:11,marginBottom:4}}>✓ {sp.length} draft{sp.length>1?"s":""} ready</div>
-                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{sp.map(s=>{const pp=PLATFORMS.find(pl=>pl.id===s.pid);return<span key={s.id} style={{background:pp?.color+"20",color:pp?.color,fontSize:11,padding:"2px 8px",borderRadius:6}}>{pp?.emoji} {pp?.name}{s.posted?" ✓":""}</span>;})}</div>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{sp.map(s=>{const pp=PLATFORMS.find(pl=>pl.id===s.pid);const xf=s.pid==="twitter"?(resolveXFormat(s)==="single"?" 💬": " 🧵"):"";return<span key={s.id} style={{background:pp?.color+"20",color:pp?.color,fontSize:11,padding:"2px 8px",borderRadius:6}}>{pp?.emoji} {pp?.name}{xf}{s.posted?" ✓":""}</span>;})}</div>
               </div>}
               <button onClick={()=>doGen(e)} disabled={!!isG||!oKey} style={{width:"100%",padding:"10px",background:isG||!oKey?"#0d0d0d":"linear-gradient(135deg,#ec4899,#f97316)",border:`1px solid ${isG||!oKey?"#ec489928":"transparent"}`,borderRadius:9,color:"#fff",fontSize:12,fontFamily:"monospace",fontWeight:700,cursor:isG||!oKey?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:!oKey?0.5:1}}>
                 {!oKey?"⚠ Add OpenAI key in 🔑 Keys tab":isG?<><Dots/><span style={{color:"#ec4899",fontSize:11}}>{gst}</span></>:`⚡ Generate Day ${e[0]} ${e[1]} · ${sel.length} platform${sel.length!==1?"s":""}`}
