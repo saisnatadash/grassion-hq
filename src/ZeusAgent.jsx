@@ -1,914 +1,955 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 
-// ─── 30-DAY CAMPAIGN CALENDAR ─────────────────────────────────────────────
-// [day, slot, week, theme, topic, accentColor]
-const CAL=[
-[1,"9am",1,"Spending Blindspot","You approve budgets you can never measure","#dc2626"],
-[1,"6pm",1,"Spending Blindspot","The renewal email nobody questions","#dc2626"],
-[2,"9am",1,"Spending Blindspot","Ghost seats bleeding your budget","#dc2626"],
-[2,"6pm",1,"Spending Blindspot","The tool nobody admitted they stopped using","#dc2626"],
-[3,"9am",1,"Spending Blindspot","CFO vs CTO: the ROI conversation nobody wins","#dc2626"],
-[3,"6pm",1,"Spending Blindspot","We measure everything except what we spend on devs","#dc2626"],
-[4,"9am",1,"Spending Blindspot","The $800K mistake I watched happen","#dc2626"],
-[4,"6pm",1,"Spending Blindspot","Nobody owns the dev tools audit","#dc2626"],
-[5,"9am",1,"Spending Blindspot","Dead weight in your developer toolkit","#dc2626"],
-[5,"6pm",1,"Spending Blindspot","The audit-it-next-quarter lie","#dc2626"],
-[6,"9am",1,"Spending Blindspot","Seat count vs usage count — the gap nobody sees","#dc2626"],
-[6,"6pm",1,"Spending Blindspot","What happens when you finally run the numbers","#dc2626"],
-[7,"9am",1,"Spending Blindspot","Week 1: the blindspot nobody wants to own","#dc2626"],
-[7,"6pm",1,"Spending Blindspot","SaaS renewals are built on your laziness","#dc2626"],
-[8,"9am",2,"Accountability Gap","Nobody gets fired for approving AI tools","#f97316"],
-[8,"6pm",2,"Accountability Gap","The dev who stopped using AI tools after week 2","#f97316"],
-[9,"9am",2,"Accountability Gap","AI tools were supposed to 10x productivity","#f97316"],
-[9,"6pm",2,"Accountability Gap","Senior devs hate it. Juniors love it. Now what?","#f97316"],
-[10,"9am",2,"Accountability Gap","The code review problem nobody talks about","#f97316"],
-[10,"6pm",2,"Accountability Gap","We ship faster and break more — is that a win?","#f97316"],
-[11,"9am",2,"Accountability Gap","The VP asked to justify $400K in AI tools","#f97316"],
-[11,"6pm",2,"Accountability Gap","Activity metrics are lying about AI productivity","#f97316"],
-[12,"9am",2,"Accountability Gap","The org that bought 3 AI coding tools at once","#f97316"],
-[12,"6pm",2,"Accountability Gap","The hallucination problem is your liability now","#f97316"],
-[13,"9am",2,"Accountability Gap","Best engineers don't need AI. Worst overuse it.","#f97316"],
-[13,"6pm",2,"Accountability Gap","The standup where nobody mentions the AI tool","#f97316"],
-[14,"9am",2,"Accountability Gap","Week 2: why do smart leaders let this happen?","#f97316"],
-[14,"6pm",2,"Accountability Gap","What if you knew which devs weren't using it?","#f97316"],
-[15,"9am",3,"Industry Pattern","This isn't your problem. It's everyone's.","#3b82f6"],
-[15,"6pm",3,"Industry Pattern","Survey data that should embarrass us all","#3b82f6"],
-[16,"9am",3,"Industry Pattern","How did we get here? A brief history","#3b82f6"],
-[16,"6pm",3,"Industry Pattern","The Series B team burning cash on unmeasured tools","#3b82f6"],
-[17,"9am",3,"Industry Pattern","The tool vendor's dirty secret","#3b82f6"],
-[17,"6pm",3,"Industry Pattern","Why engineers don't report low tool usage","#3b82f6"],
-[18,"9am",3,"Industry Pattern","The $50B question nobody asks","#3b82f6"],
-[18,"6pm",3,"Industry Pattern","Why the best CTOs are pushing back on AI tools","#3b82f6"],
-[19,"9am",3,"Industry Pattern","The codebase rot nobody connects to AI tools","#3b82f6"],
-[19,"6pm",3,"Industry Pattern","India's teams: fastest adopters, least measurement","#3b82f6"],
-[20,"9am",3,"Industry Pattern","What the data actually says about AI productivity","#3b82f6"],
-[20,"6pm",3,"Industry Pattern","The retro nobody runs: did the AI tool help?","#3b82f6"],
-[21,"9am",3,"Industry Pattern","Week 3: the picture is getting clear","#3b82f6"],
-[21,"6pm",3,"Industry Pattern","The problem is solvable. We need to decide it matters.","#3b82f6"],
-[22,"9am",4,"Building in Public","Why I'm building something to fix this problem","#22c55e"],
-[22,"6pm",4,"Building in Public","What 20 CTO conversations taught me","#22c55e"],
-[23,"9am",4,"Building in Public","The first version was terrible","#22c55e"],
-[23,"6pm",4,"Building in Public","The moment I almost gave up","#22c55e"],
-[24,"9am",4,"Building in Public","What being a non-technical founder actually feels like","#22c55e"],
-[24,"6pm",4,"Building in Public","The feedback that changed everything","#22c55e"],
-[25,"9am",4,"Building in Public","Building in Bhubaneswar for CTOs in San Francisco","#22c55e"],
-[25,"6pm",4,"Building in Public","The infrastructure is live. The anxiety is real.","#22c55e"],
-[26,"9am",4,"Building in Public","What I'd tell myself 6 months ago","#22c55e"],
-[26,"6pm",4,"Building in Public","The metric I track with nothing to do with revenue","#22c55e"],
-[27,"9am",4,"Building in Public","To every CTO who DM'd me about this problem","#22c55e"],
-[27,"6pm",4,"Building in Public","72 hours from now everything changes","#22c55e"],
-[28,"9am",4,"Building in Public","24 hours. The problem. The gap. The answer.","#22c55e"],
-[28,"6pm",4,"Building in Public","Tonight I can't sleep","#22c55e"],
-[29,"9am",5,"LAUNCH","Introducing Grassion — we built the answer","#a855f7"],
-[29,"6pm",5,"LAUNCH","The exact numbers Grassion shows you","#a855f7"],
-[30,"9am",5,"POST-LAUNCH","30 days. One problem. One solution.","#a855f7"],
-[30,"6pm",5,"POST-LAUNCH","To everyone who said this is exactly my problem","#a855f7"],
+// ─── 30-DAY CALENDAR ──────────────────────────────────────────────────────────
+// [day, slot, week, phase, topic, accentColor, imageStyle]
+const CAL = [
+  [1,"9am",1,"Spending Blindspot","You approve budgets you can never measure","#ef4444","red"],
+  [1,"6pm",1,"Spending Blindspot","The renewal email nobody questions","#ef4444","red"],
+  [2,"9am",1,"Spending Blindspot","Ghost seats bleeding your budget","#ef4444","red"],
+  [2,"6pm",1,"Spending Blindspot","The tool nobody admitted they stopped using","#ef4444","red"],
+  [3,"9am",1,"Spending Blindspot","CFO vs CTO: the ROI conversation nobody wins","#ef4444","red"],
+  [3,"6pm",1,"Spending Blindspot","We measure everything except what we spend on devs","#ef4444","red"],
+  [4,"9am",1,"Spending Blindspot","The $800K mistake I watched happen","#ef4444","red"],
+  [4,"6pm",1,"Spending Blindspot","Nobody owns the dev tools audit","#ef4444","red"],
+  [5,"9am",1,"Spending Blindspot","Dead weight in your developer toolkit","#ef4444","red"],
+  [5,"6pm",1,"Spending Blindspot","The audit-it-next-quarter lie","#ef4444","red"],
+  [6,"9am",1,"Spending Blindspot","Seat count vs usage count — the gap nobody sees","#ef4444","red"],
+  [6,"6pm",1,"Spending Blindspot","What happens when you finally run the numbers","#ef4444","red"],
+  [7,"9am",1,"Spending Blindspot","Week 1 wrap: the blindspot nobody wants to own","#ef4444","red"],
+  [7,"6pm",1,"Spending Blindspot","SaaS renewals are built on your laziness","#ef4444","red"],
+  [8,"9am",2,"Accountability Gap","Nobody gets fired for approving AI tools","#f97316","orange"],
+  [8,"6pm",2,"Accountability Gap","The dev who stopped using AI tools after week 2","#f97316","orange"],
+  [9,"9am",2,"Accountability Gap","AI tools were supposed to 10x productivity","#f97316","orange"],
+  [9,"6pm",2,"Accountability Gap","Senior devs hate it. Juniors love it. Now what?","#f97316","orange"],
+  [10,"9am",2,"Accountability Gap","The code review problem nobody talks about","#f97316","orange"],
+  [10,"6pm",2,"Accountability Gap","We ship faster and break more — is that a win?","#f97316","orange"],
+  [11,"9am",2,"Accountability Gap","The VP asked to justify $400K in AI tools","#f97316","orange"],
+  [11,"6pm",2,"Accountability Gap","Activity metrics are lying about AI productivity","#f97316","orange"],
+  [12,"9am",2,"Accountability Gap","The org that bought 3 AI coding tools at once","#f97316","orange"],
+  [12,"6pm",2,"Accountability Gap","The hallucination problem is your liability now","#f97316","orange"],
+  [13,"9am",2,"Accountability Gap","Best engineers don't need AI. Worst overuse it.","#f97316","orange"],
+  [13,"6pm",2,"Accountability Gap","The standup where nobody mentions the AI tool","#f97316","orange"],
+  [14,"9am",2,"Accountability Gap","Week 2: why do smart leaders let this happen?","#f97316","orange"],
+  [14,"6pm",2,"Accountability Gap","What if you knew which devs weren't using it?","#f97316","orange"],
+  [15,"9am",3,"Industry Pattern","This isn't your problem. It's everyone's.","#3b82f6","blue"],
+  [15,"6pm",3,"Industry Pattern","Survey data that should embarrass us all","#3b82f6","blue"],
+  [16,"9am",3,"Industry Pattern","How did we get here? A brief history","#3b82f6","blue"],
+  [16,"6pm",3,"Industry Pattern","The Series B team burning cash on unmeasured tools","#3b82f6","blue"],
+  [17,"9am",3,"Industry Pattern","The tool vendor's dirty secret","#3b82f6","blue"],
+  [17,"6pm",3,"Industry Pattern","Why engineers don't report low tool usage","#3b82f6","blue"],
+  [18,"9am",3,"Industry Pattern","The $50B question nobody asks","#3b82f6","blue"],
+  [18,"6pm",3,"Industry Pattern","Why the best CTOs are pushing back on AI tools","#3b82f6","blue"],
+  [19,"9am",3,"Industry Pattern","The codebase rot nobody connects to AI tools","#3b82f6","blue"],
+  [19,"6pm",3,"Industry Pattern","India's teams: fastest adopters, least measurement","#3b82f6","blue"],
+  [20,"9am",3,"Industry Pattern","What the data actually says about AI productivity","#3b82f6","blue"],
+  [20,"6pm",3,"Industry Pattern","The retro nobody runs: did the AI tool help?","#3b82f6","blue"],
+  [21,"9am",3,"Industry Pattern","Week 3: the picture is getting clear","#3b82f6","blue"],
+  [21,"6pm",3,"Industry Pattern","The problem is solvable. We need to decide it matters.","#3b82f6","blue"],
+  [22,"9am",4,"Building in Public","Why I'm building something to fix this problem","#22c55e","green"],
+  [22,"6pm",4,"Building in Public","What 20 CTO conversations taught me","#22c55e","green"],
+  [23,"9am",4,"Building in Public","The first version was terrible","#22c55e","green"],
+  [23,"6pm",4,"Building in Public","The moment I almost gave up","#22c55e","green"],
+  [24,"9am",4,"Building in Public","What being a non-technical founder actually feels like","#22c55e","green"],
+  [24,"6pm",4,"Building in Public","The feedback that changed everything","#22c55e","green"],
+  [25,"9am",4,"Building in Public","Building in Bhubaneswar for CTOs in San Francisco","#22c55e","green"],
+  [25,"6pm",4,"Building in Public","The infrastructure is live. The anxiety is real.","#22c55e","green"],
+  [26,"9am",4,"Building in Public","What I'd tell myself 6 months ago","#22c55e","green"],
+  [26,"6pm",4,"Building in Public","The metric I track that has nothing to do with revenue","#22c55e","green"],
+  [27,"9am",4,"Building in Public","To every CTO who DM'd me about this problem","#22c55e","green"],
+  [27,"6pm",4,"Building in Public","72 hours from now everything changes","#22c55e","green"],
+  [28,"9am",4,"Building in Public","24 hours. The problem. The gap. The answer.","#22c55e","green"],
+  [28,"6pm",4,"Building in Public","Tonight I can't sleep","#22c55e","green"],
+  [29,"9am",5,"LAUNCH","Introducing Grassion — we built the answer","#a855f7","purple"],
+  [29,"6pm",5,"LAUNCH","The exact numbers Grassion shows you","#a855f7","purple"],
+  [30,"9am",5,"POST-LAUNCH","30 days. One problem. One solution.","#a855f7","purple"],
+  [30,"6pm",5,"POST-LAUNCH","To everyone who said 'this is exactly my problem'","#a855f7","purple"],
 ];
 
-// ─── AI SYSTEM PROMPT ─────────────────────────────────────────────────────
-const SYSTEM = `You are a thought leader in engineering management writing about the AI coding tools accountability problem.
+// ─── SYSTEM PROMPT ────────────────────────────────────────────────────────────
+const SYSTEM = `You are a thought leader in engineering management writing about problems with AI coding tools and dev tool spending ROI.
 
-CRITICAL FORMAT RULES — follow these exactly or the post fails:
-- Write in plain human prose ONLY. No markdown formatting whatsoever.
-- NEVER use asterisks, bold, bullet points with *, dashes as bullets, or any ### headers.
-- For LinkedIn: write in short conversational paragraphs separated by blank lines. Reads like a real person's post.
-- For Twitter: write numbered tweets like "1/" "2/" etc. Plain sentences. No formatting.
-- Sound like a real human professional who genuinely cares about this problem.
-- No AI-sounding phrases: no "In today's world", no "It's important to", no "As we navigate".
-- Every post must make a senior engineer or CTO nod and say "this is exactly what we deal with."
-- Do NOT mention any product (Grassion) unless the topic says grassion.com.
-- Write ONLY the post text. Nothing else. No "Here is your post:" no intro, no metadata.`;
+CONTEXT ABOUT THE AUTHOR:
+- Non-technical founder building Grassion (grassion.com) — a tool that shows CTOs if their GitHub Copilot and Cursor spend is actually working
+- Based in Bhubaneswar, Odisha, India — building for engineering leaders in San Francisco, Dubai, London
+- Has spoken with 20+ CTOs who confirmed this problem is real and universal
+- Grassion connects to GitHub, shows per-developer AI tool ROI, detects seat waste, gives codebase health score 0-100
 
-// ─── PLATFORM INSTRUCTIONS ────────────────────────────────────────────────
-const INSTR = {
-  linkedin: `LinkedIn post. 700 to 1000 characters. Start with a single punchy line that stops the scroll — a specific dollar amount, a provocative observation, or a stat that surprises. Then 3 short paragraphs of plain prose. End with one question that makes CTOs uncomfortable in a good way. Max 3 hashtags at the very end. No bullet points. No asterisks. Conversational paragraphs only.`,
-  twitter: `Twitter/X THREAD. Write 4 to 8 tweets numbered 1/ through 8/ (one number per tweet). CRITICAL: each tweet line must be STRICTLY under 280 characters total including the "1/" prefix. First tweet is the hook. Build tension tweet by tweet. Last tweet is a question or sharp insight. Plain text only.`,
-  twitter_single: `Single Twitter/X post. ONE tweet only — no thread, no numbering (never write 1/ or 2/). Under 270 characters total. One complete punchy thought: hook, insight, optional question. Plain text only.`,
-  reddit: `Reddit r/SaaS post. First line is the title. Then body text in plain conversational paragraphs. Honest founder voice. Can hint at building something. No spam. Reads like a genuine observation from someone who works in engineering.`,
-  devto: `Dev.to article. First line is a punchy article title. Then 700 to 900 words of plain prose with clear paragraph breaks. No markdown headers, no bullet points. Write naturally like a blog post, not a listicle. End with a question for the reader.`,
-  hn: `Hacker News submission. Show HN or Ask HN format. Under 200 words total. Completely factual. Zero hype. Reads like an engineer wrote it. Plain text only.`,
-  ih: `IndieHackers post. Transparent founder voice. Real numbers and real feelings. Building-in-public energy. Plain paragraphs. Honest about what's hard. Reads like a diary entry from a founder, not marketing copy.`,
+GRASSION PRODUCT DETAILS (only mention when phase is LAUNCH or POST-LAUNCH):
+- Connects to GitHub via OAuth
+- Shows seat utilization rate per developer
+- Tracks AI PR revert rate (PRs written with AI that get reverted)
+- Codebase health score 0-100 (weekly trend)
+- Detects ghost seats — licenses paid, nobody using
+- 2-minute dashboard for CTOs
+- grassion.com
+
+WRITING RULES:
+- ZERO product promotion unless topic explicitly says LAUNCH or POST-LAUNCH
+- Direct, peer-to-peer CTO voice. Data-driven. No fluff.
+- Make readers physically nod and say "this is exactly my problem"
+- Write ONLY the post content — no preamble, no "here is your post", no metadata
+- No em-dashes. Use plain dashes or restructure sentences.`;
+
+// ─── PLATFORM INSTRUCTIONS ───────────────────────────────────────────────────
+const PINSTR = {
+  linkedin: `LinkedIn post format:
+- 900-1200 characters total
+- Start with ONE shocking stat, confession, or observation as a hook (single line, no hashtag)
+- 3-5 short paragraphs, each 1-3 lines, with blank lines between them
+- Build tension through the middle
+- End with a provocative question that makes CTOs admit they face this
+- 3 relevant hashtags at the very end only: #CTOs #EngineeringLeadership #AITools
+- Conversational but authoritative`,
+
+  twitter: `Twitter/X thread format:
+- 8-10 tweets numbered 1/ 2/ 3/ etc.
+- Tweet 1: Scroll-stopping hook under 250 chars. Bold claim or uncomfortable truth.
+- Tweets 2-7: Build the argument, one sharp point per tweet. Each under 280 chars.
+- Tweet 8-9: The insight or uncomfortable truth
+- Final tweet: Question or call to reflect. Add relevant hashtags only on the last tweet.
+- Each tweet must stand alone but build on the previous
+- No filler. Every tweet earns its place.`
 };
 
-// ─── EXTRA CONTEXT PER TOPIC ──────────────────────────────────────────────
+// ─── TOPIC-SPECIFIC EXTRA CONTEXT ────────────────────────────────────────────
 const EXTRA = {
-  "You approve budgets you can never measure": "CTOs approve $50K plus in dev tools every quarter with zero process to verify actual usage afterward. Lead with a specific dollar number — make it feel real. Confessional tone, like you're admitting a collective sin. End with a question that makes the reader squirm slightly.",
-  "Ghost seats bleeding your budget": "23% of software seats in any engineering org are completely unused. Show the math for a 100-person team paying per seat. Ghost licenses paid monthly, never touched, auto-renewing. Make the number feel visceral. This is money vanishing silently every month.",
-  "CFO vs CTO: the ROI conversation nobody wins": "The moment every CTO dreads — CFO walks in and asks what is the ROI on this $400K in developer tools. Internal panic. A vague answer about productivity and morale. An awkward slide with vanity metrics. Write this scene so every CTO reading it feels it in their stomach.",
-  "Nobody gets fired for approving AI tools": "AI tool budgets get rubber-stamped because no one wants to be the person who blocked the team from using AI. So it gets approved, deployed with excitement, then unmeasured, then silently renewed. Write about this herd mentality and why smart people participate in it.",
-  "AI tools were supposed to 10x productivity": "The gap between vendor promises — 10x faster, 55% more output — and what most teams actually measure day to day. Some developers benefit enormously. Others see no change or negative effects. The average hides everything. CTOs have no way to tell which is which.",
-  "The VP asked to justify $400K in AI tools": "VP Engineering facing a board meeting needs to justify $400K in AI tools across the org. Has dashboards showing commit volume and lines of code. Has no outcome data. Has no revert rate by tool. Has no ROI number. Write the anxiety, the scramble, the vague answer they end up giving.",
-  "The tool vendor's dirty secret": "AI coding tool vendors have detailed internal dashboards showing exactly which seats are active and which haven't been touched in months. They never proactively share this with customers. Low-usage data stays hidden because unused seats still renew. This is not conspiracy — it's just how subscription software works.",
-  "Why I'm building something to fix this problem": "Building-in-public intro post. Three weeks of talking about this problem. Now building something. Do not name the product at all. Explain why this specific problem drove you personally to build. Bhubaneswar, non-technical founder, first product. Vulnerable and direct.",
-  "The moment I almost gave up": "Raw honest post about almost quitting the build. What made you doubt it. A specific low moment. What made you continue. Not a Hollywood comeback story — just a real founder moment that other founders will recognize immediately.",
-  "Building in Bhubaneswar for CTOs in San Francisco": "The experience of building something in Bhubaneswar that engineering leaders in San Francisco and London actually need. The geographic paradox. The slight absurdity and the genuine pride. Write this with self-awareness and warmth.",
-  "72 hours from now everything changes": "Teaser post. 72 hours from now you are launching something. Do not say what it is. Build tension. Reference the four weeks of problem posts without naming the solution. Short, punchy, makes people want to follow you right now.",
-  "Tonight I can't sleep": "Launch eve. Everything is built. Tomorrow it goes public. Under 150 words. Raw honest feeling. Every founder who has been here will recognize this immediately. No drama, just the specific texture of that feeling.",
-  "Introducing Grassion — we built the answer": "THE LAUNCH POST. This is the payoff after 28 days of pure problem content. Reveal Grassion: connects to GitHub, shows CTOs if their Copilot and Cursor spend is actually working — per-developer ROI verdict, seat waste detection, codebase health score 0 to 100. Connect every point back to the problems discussed over 28 days. This should feel like the answer the audience has been waiting for. End with grassion.com",
-  "The exact numbers Grassion shows you": "Launch follow-up post. Be specific about what the Grassion dashboard actually shows: seat utilization rate per developer, AI PR revert rate versus human PR revert rate, codebase health score from 0 to 100, weekly trends over time, per-tool attribution (Copilot vs Cursor vs Codeium). Tell a CTO exactly what they would see in their first 2 minutes. End with grassion.com",
+  "You approve budgets you can never measure": "CTOs approve $50K+ in dev tools with zero process to verify usage. Lead with a specific dollar number. Confessional tone — make the reader recognise themselves. End with a question.",
+  "Ghost seats bleeding your budget": "23% of software seats in any org go completely unused. Show the math for a 100-person team paying for Copilot at $19/seat/month. Ghost licenses, paid monthly, never touched, auto-renewing.",
+  "CFO vs CTO: the ROI conversation nobody wins": "The moment every CTO dreads. CFO asks: 'What's the ROI on this $400K?' Internal panic. Vague answer about 'developer productivity'. Awkward silence. Make every CTO reading this feel it physically.",
+  "The $800K mistake I watched happen": "First-person observer story. $800K in dev tools across an engineering org. Zero accountability mechanism. Write what happened when the board asked for ROI proof. Specific details make this real.",
+  "Nobody gets fired for approving AI tools": "AI tool budgets get rubber-stamped because saying no feels like blocking innovation. So they get approved, unmeasured, renewed. Write about this herd mentality in engineering leadership.",
+  "AI tools were supposed to 10x productivity": "The gap between vendor marketing promises (10x productivity, 55% faster coding) and what most teams actually experience. The average hides massive individual variation. Some benefit enormously, some see negative effects.",
+  "The VP asked to justify $400K in AI tools": "VP Engineering faces a board meeting. Must justify $400K in AI tools. Has usage dashboards showing activity metrics (commits, PRs, lines written) but zero outcome data. Write the anxiety, the scramble, the vague answer.",
+  "The tool vendor's dirty secret": "AI coding tool vendors have detailed internal usage data. They know exactly which seats are active and which are ghost seats. They never proactively share low-usage data with customers. Unused seats renew just the same.",
+  "Why I'm building something to fix this problem": "Building-in-public intro. 3 weeks of problem posts done. Now building. DO NOT name the product yet. Explain why this problem personally drove you to build something. Non-technical founder from Bhubaneswar.",
+  "The moment I almost gave up": "Raw honest post about almost quitting. What made you doubt it. What made you continue. Not a Hollywood comeback — just real founder doubt and the small thing that pulled you through.",
+  "Building in Bhubaneswar for CTOs in San Francisco": "The strange experience of building something in Bhubaneswar, Odisha that engineering leaders in San Francisco, Dubai, and London actually need. Geographic paradox. Write with self-aware pride.",
+  "72 hours from now everything changes": "Teaser post. 72 hours from launch. DO NOT say what it is. Maximum tension. Reference the 4 weeks of problem posts. Short, punchy, impossible to ignore.",
+  "Tonight I can't sleep": "Launch eve. Everything is built, tested, live. Tomorrow it goes public. Raw honest feeling in under 150 words. Every founder who has been here will recognise this immediately.",
+  "Introducing Grassion — we built the answer": "THE LAUNCH POST. 28 days of problem content — the payoff moment. Reveal: Grassion connects to GitHub, shows CTOs if their Copilot and Cursor spend is actually working — per-developer ROI, seat waste detection, codebase health score 0-100. Connect every major problem from the past 28 days to what Grassion solves. This is the post the audience has been waiting for. Include grassion.com prominently.",
+  "The exact numbers Grassion shows you": "Launch follow-up. Be hyper-specific: seat utilization rate per developer, AI PR revert rate, codebase health score 0-100, weekly trends, ghost seat detection. What the dashboard actually tells a CTO in exactly 2 minutes. Convert readers to signups. grassion.com",
+  "30 days. One problem. One solution.": "Closing reflection. Look back at the 30-day journey — from spending blindspot to accountability gap to industry pattern to building in public to launch. What you learned. What surprised you. Gratitude without being sappy. Include grassion.com.",
 };
 
-// ─── IMAGE GENERATION (Canvas, no API needed) ─────────────────────────────
-function fillRoundRect(ctx, x, y, w, h, radii) {
-  if (typeof ctx.roundRect === "function") {
-    ctx.beginPath();
-    ctx.roundRect(x, y, w, h, radii);
-    ctx.fill();
-  } else {
-    ctx.fillRect(x, y, w, h);
-  }
-}
-
-function getOpenAIKey() {
-  try {
-    const c = JSON.parse(localStorage.getItem("hqf_creds") || "{}");
-    return c?.openai?.api_key?.trim() || "";
-  } catch {
-    return "";
-  }
-}
-
-function makeImg(day, slot, topic, acc) {
+// ─── IMAGE GENERATOR ─────────────────────────────────────────────────────────
+function makeImage(day, slot, topic, accentColor, phase) {
   const cv = document.createElement("canvas");
   cv.width = 1200; cv.height = 630;
-  const x = cv.getContext("2d");
-  if (!x) return null;
-  const BGS = { "#dc2626":"#0a0000","#f97316":"#0a0500","#3b82f6":"#000814","#22c55e":"#001a0a","#a855f7":"#0a0008" };
-  const g = x.createLinearGradient(0, 0, 1200, 630);
-  g.addColorStop(0, BGS[acc] || "#080808"); g.addColorStop(1, "#111");
-  x.fillStyle = g; x.fillRect(0, 0, 1200, 630);
-  const gl = x.createRadialGradient(260, 315, 20, 260, 315, 380);
-  gl.addColorStop(0, acc + "22"); gl.addColorStop(1, "transparent");
-  x.fillStyle = gl; x.fillRect(0, 0, 1200, 630);
-  x.fillStyle = acc + "15";
-  for (let px = 690; px < 1160; px += 36)
-    for (let py = 50; py < 590; py += 36) { x.beginPath(); x.arc(px, py, 1.8, 0, Math.PI * 2); x.fill(); }
-  [0.3,0.68,0.45,0.88,0.55,0.95,0.4,0.72,0.85,0.5].forEach((h, i) => {
-    const bx = 710 + i * 46, bh = h * 230, by = 385 - bh;
-    const bg = x.createLinearGradient(0, by, 0, 385);
-    bg.addColorStop(0, acc + "bb"); bg.addColorStop(1, acc + "15");
-    x.fillStyle = bg; fillRoundRect(x, bx, by, 32, bh, [5, 5, 0, 0]);
-    x.fillStyle = acc; x.fillRect(bx, by, 32, 3);
+  const ctx = cv.getContext("2d");
+
+  // Background gradient
+  const bgMap = {
+    "#ef4444": "#0c0000", "#f97316": "#0a0400",
+    "#3b82f6": "#00040f", "#22c55e": "#001008", "#a855f7": "#070010"
+  };
+  const bg = bgMap[accentColor] || "#080808";
+  const grad = ctx.createLinearGradient(0, 0, 1200, 630);
+  grad.addColorStop(0, bg);
+  grad.addColorStop(0.6, "#0d0d0d");
+  grad.addColorStop(1, "#111");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 1200, 630);
+
+  // Radial glow left side
+  const glow = ctx.createRadialGradient(300, 315, 0, 300, 315, 420);
+  glow.addColorStop(0, accentColor + "30");
+  glow.addColorStop(1, "transparent");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, 1200, 630);
+
+  // Right side: bar chart visualization
+  const bars = [0.35, 0.72, 0.48, 0.91, 0.55, 0.83, 0.42, 0.76, 0.88, 0.61, 0.94, 0.5];
+  bars.forEach((h, i) => {
+    const bx = 720 + i * 40, maxH = 240, bh = h * maxH, by = 400 - bh;
+    const barGrad = ctx.createLinearGradient(0, by, 0, 400);
+    barGrad.addColorStop(0, accentColor + "cc");
+    barGrad.addColorStop(1, accentColor + "18");
+    ctx.fillStyle = barGrad;
+    ctx.beginPath();
+    ctx.roundRect(bx, by, 26, bh, [4, 4, 0, 0]);
+    ctx.fill();
+    ctx.fillStyle = accentColor;
+    ctx.fillRect(bx, by, 26, 3);
   });
-  x.strokeStyle = "#ffffff06"; x.lineWidth = 1;
-  [205,265,325,385].forEach(y => { x.beginPath(); x.moveTo(695, y); x.lineTo(1165, y); x.stroke(); });
-  const tb = x.createLinearGradient(0, 0, 900, 0);
-  tb.addColorStop(0, acc); tb.addColorStop(1, "transparent");
-  x.fillStyle = tb; x.fillRect(0, 0, 1200, 5);
-  const lb = x.createLinearGradient(0, 0, 0, 630);
-  lb.addColorStop(0, acc); lb.addColorStop(1, "transparent");
-  x.fillStyle = lb; x.fillRect(0, 0, 4, 630);
-  x.fillStyle = acc + "20"; fillRoundRect(x, 60, 50, 166, 32, 16);
-  x.font = "700 12px monospace"; x.fillStyle = acc; x.textAlign = "center";
-  x.fillText(`WEEK ${Math.ceil(day / 7)} · DAY ${day}`, 143, 71); x.textAlign = "left";
-  if (day >= 29) {
-    x.font = "900 110px Arial"; x.fillStyle = acc; x.shadowColor = acc; x.shadowBlur = 50;
-    x.fillText("LIVE", 60, 310); x.shadowBlur = 0;
-    x.font = "700 22px Arial"; x.fillStyle = "#fff"; x.fillText("grassion.com", 60, 360);
-  } else {
-    const words = topic.toUpperCase().split(" "); let ln = "", ly = 210;
-    x.font = "900 62px Arial";
-    words.forEach(w => {
-      const t = ln + w + " ";
-      if (x.measureText(t).width > 540 && ln) {
-        x.fillStyle = acc; x.shadowColor = acc; x.shadowBlur = 16; x.fillText(ln.trim(), 60, ly); x.shadowBlur = 0;
-        ln = w + " "; ly += 76;
-      } else ln = t;
-    });
-    x.fillStyle = acc; x.shadowColor = acc; x.shadowBlur = 16; x.fillText(ln.trim(), 60, ly); x.shadowBlur = 0;
+
+  // Dot grid right background
+  ctx.fillStyle = accentColor + "12";
+  for (let x = 700; x < 1180; x += 32) {
+    for (let y = 60; y < 580; y += 32) {
+      ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI * 2); ctx.fill();
+    }
   }
-  x.fillStyle = "#ffffff05"; x.fillRect(0, 592, 1200, 38);
-  x.font = "700 12px monospace"; x.fillStyle = "#374151";
-  x.fillText(day >= 29 ? "grassion.com — Where AI Code Meets Accountability" : `Day ${day} of 30 · Building in public`, 60, 615);
-  x.fillStyle = slot === "9am" ? "#f97316" : "#3b82f6"; x.textAlign = "right";
-  x.fillText(slot + " IST", 1120, 615); x.textAlign = "left";
+
+  // Horizontal grid lines behind bars
+  ctx.strokeStyle = "#ffffff08"; ctx.lineWidth = 1;
+  [220, 290, 360].forEach(y => {
+    ctx.beginPath(); ctx.moveTo(700, y); ctx.lineTo(1170, y); ctx.stroke();
+  });
+
+  // Top accent bar
+  const topBar = ctx.createLinearGradient(0, 0, 800, 0);
+  topBar.addColorStop(0, accentColor);
+  topBar.addColorStop(1, "transparent");
+  ctx.fillStyle = topBar;
+  ctx.fillRect(0, 0, 1200, 4);
+
+  // Left accent bar
+  const leftBar = ctx.createLinearGradient(0, 0, 0, 630);
+  leftBar.addColorStop(0, accentColor);
+  leftBar.addColorStop(1, "transparent");
+  ctx.fillStyle = leftBar;
+  ctx.fillRect(0, 0, 4, 630);
+
+  // Phase badge
+  ctx.fillStyle = accentColor + "22";
+  ctx.beginPath();
+  ctx.roundRect(60, 52, 200, 34, 17);
+  ctx.fill();
+  ctx.strokeStyle = accentColor + "44";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(60, 52, 200, 34, 17);
+  ctx.stroke();
+  ctx.font = "bold 11px monospace";
+  ctx.fillStyle = accentColor;
+  ctx.textAlign = "center";
+  ctx.fillText(`WEEK ${Math.ceil(day / 7)} · DAY ${day} · ${slot.toUpperCase()} IST`, 160, 74);
+  ctx.textAlign = "left";
+
+  // Main text or LAUNCH graphic
+  if (phase === "LAUNCH" || phase === "POST-LAUNCH") {
+    ctx.font = "900 120px Georgia";
+    ctx.fillStyle = accentColor;
+    ctx.shadowColor = accentColor;
+    ctx.shadowBlur = 60;
+    ctx.fillText("LIVE", 60, 330);
+    ctx.shadowBlur = 0;
+    ctx.font = "bold 26px monospace";
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText("grassion.com", 60, 385);
+    ctx.font = "14px monospace";
+    ctx.fillStyle = "#6b7280";
+    ctx.fillText("AI Dev Tools · ROI Intelligence · GitHub-native", 60, 420);
+  } else {
+    const words = topic.toUpperCase().split(" ");
+    let line = "", y = 200;
+    ctx.font = "900 56px Georgia";
+    words.forEach(word => {
+      const test = line + word + " ";
+      if (ctx.measureText(test).width > 520 && line) {
+        ctx.fillStyle = accentColor;
+        ctx.shadowColor = accentColor;
+        ctx.shadowBlur = 20;
+        ctx.fillText(line.trim(), 60, y);
+        ctx.shadowBlur = 0;
+        line = word + " ";
+        y += 68;
+      } else { line = test; }
+    });
+    ctx.fillStyle = accentColor;
+    ctx.shadowColor = accentColor;
+    ctx.shadowBlur = 20;
+    ctx.fillText(line.trim(), 60, y);
+    ctx.shadowBlur = 0;
+  }
+
+  // Bottom bar
+  ctx.fillStyle = "#ffffff04";
+  ctx.fillRect(0, 590, 1200, 40);
+  ctx.font = "bold 11px monospace";
+  ctx.fillStyle = "#374151";
+  ctx.textAlign = "left";
+  ctx.fillText(phase === "LAUNCH" || phase === "POST-LAUNCH"
+    ? "grassion.com — Where AI Code Meets Accountability"
+    : `Day ${day} of 30 · Building in public · grassion.com`, 60, 615);
+  ctx.fillStyle = slot === "9am" ? "#f97316" : "#3b82f6";
+  ctx.textAlign = "right";
+  ctx.fillText(slot === "9am" ? "☀ Morning Post" : "🌆 Evening Post", 1140, 615);
+
   return cv.toDataURL("image/png");
 }
 
-// ─── PLATFORMS ────────────────────────────────────────────────────────────
-const PLATFORMS = [
-  { id:"linkedin",    name:"LinkedIn",    emoji:"💼", color:"#0077b5", url:()=>"https://www.linkedin.com/feed/" },
-  { id:"twitter",     name:"Twitter/X",   emoji:"🐦", color:"#1da1f2", url:(c)=>`https://twitter.com/intent/tweet?text=${encodeURIComponent(c.slice(0,280))}` },
-  { id:"reddit",      name:"r/SaaS",      emoji:"🤖", color:"#ff4500", url:(c)=>`https://www.reddit.com/r/SaaS/submit?title=${encodeURIComponent(c.split('\n')[0].slice(0,200))}&text=${encodeURIComponent(c)}` },
-  { id:"devto",       name:"Dev.to",      emoji:"📝", color:"#3b49df", url:()=>"https://dev.to/new" },
-  { id:"hn",          name:"Hacker News", emoji:"🟠", color:"#ff6600", url:(c)=>`https://news.ycombinator.com/submit?title=${encodeURIComponent(c.split('\n')[0].slice(0,200))}` },
-  { id:"ih",          name:"IndieHackers",emoji:"💡", color:"#5850e3", url:()=>"https://www.indiehackers.com/post/new" },
-];
-
-const wc = (d) => ["#dc2626","#f97316","#3b82f6","#22c55e","#22c55e","#a855f7"][Math.min(Math.ceil(d / 7) - 1, 5)];
-const SK = "zeus_v8";
-const TW_CHAR_LIMIT = 280;
-
-const normalizePosts = (arr) => (Array.isArray(arr) ? arr : []).map((p) => ({
-  ...p,
-  posted: !!p.posted,
-  reach: Number(p.reach) || 0,
-  likes: Number(p.likes) || 0,
-}));
-
-const lp = () => {
-  try {
-    return normalizePosts(JSON.parse(localStorage.getItem(SK) || "[]"));
-  } catch {
-    return [];
-  }
-};
-const sp = (p) => {
-  try {
-    localStorage.setItem(SK, JSON.stringify(p));
-    return true;
-  } catch {
-    try {
-      localStorage.setItem(SK, JSON.stringify(p.map(({ img, ...rest }) => ({ ...rest, img: null }))));
-      return "slim";
-    } catch {
-      return false;
-    }
-  }
-};
-
-/** Split thread by numbered tweets: 1/, 2/, … */
-function extractTwitterTweets(content) {
-  const text = (content || "").trim();
-  if (!text) return [];
-  const chunks = text.split(/(?=(?:^|\n)\d+\/\s?)/m).map((c) => c.trim()).filter(Boolean);
-  if (!chunks.length) return [{ num: "1/", text }];
-  return chunks.map((chunk, i) => {
-    const m = chunk.match(/^(\d+\/)\s*([\s\S]*)$/);
-    if (m) return { num: m[1], text: m[2].trim() };
-    return { num: `${i + 1}/`, text: chunk.replace(/^\d+\/\s*/, "").trim() };
-  });
-}
-
-function tweetLine(num, body) {
-  const prefix = `${num} `;
-  const maxBody = TW_CHAR_LIMIT - prefix.length;
-  let b = body;
-  if (b.length > maxBody) b = b.slice(0, Math.max(0, maxBody));
-  let line = `${num} ${b}`.trim();
-  if (line.length > TW_CHAR_LIMIT) line = line.slice(0, TW_CHAR_LIMIT);
-  return line;
-}
-
-function enforceTwitterThread(content) {
-  const tweets = extractTwitterTweets(content);
-  if (!tweets.length) return (content || "").slice(0, TW_CHAR_LIMIT);
-  return tweets.map((tw, i) => tweetLine(tw.num || `${i + 1}/`, tw.text)).join("\n\n");
-}
-
-const TW_FORMAT_OPTS = [
-  { id: "auto", label: "🤖 AI picks", hint: "Recommends single or thread per topic" },
-  { id: "single", label: "💬 Single", hint: "One tweet under 280 chars" },
-  { id: "thread", label: "🧵 Thread", hint: "4–8 numbered tweets" },
-];
-
-function inferXFormat(content) {
-  const text = (content || "").trim();
-  if (!text) return "single";
-  const markers = text.match(/(?:^|\n)\d+\/\s/gm);
-  return markers && markers.length > 1 ? "thread" : "single";
-}
-
-function resolveXFormat(post) {
-  if (post.xFormat === "single" || post.xFormat === "thread") return post.xFormat;
-  return inferXFormat(post.content);
-}
-
-function normalizeTwitterContent(content, format) {
-  let t = (content || "").trim();
-  if (format === "single") {
-    t = t.split(/\n\n+/)[0]?.replace(/^\d+\/\s*/, "").trim() || t.replace(/^\d+\/\s*/, "").trim();
-    if (t.length > TW_CHAR_LIMIT) t = t.slice(0, TW_CHAR_LIMIT);
-    return t;
-  }
-  return enforceTwitterThread(t);
-}
-
-function getXLines(content, format) {
-  const fmt = format || inferXFormat(content);
-  if (fmt === "single") return [normalizeTwitterContent(content, "single")];
-  return extractTwitterTweets(content).map((tw, i) => tweetLine(tw.num || `${i + 1}/`, tw.text));
-}
-
-async function recommendTwitterFormat(key, topic, extra, entry) {
-  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+// ─── GENERATE POST VIA API ───────────────────────────────────────────────────
+async function generatePost(topic, phase, platform) {
+  const extra = EXTRA[topic] || `Write a powerful post about: "${topic}". ${phase === "LAUNCH" || phase === "POST-LAUNCH" ? "Include grassion.com." : "No product promotion."}`;
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
-      max_tokens: 8,
-      temperature: 0,
-      messages: [
-        { role: "system", content: "Reply with exactly one word: SINGLE or THREAD. SINGLE for hot takes, one stat, launch punch, teaser, emotional one-liner. THREAD for multi-step stories, lists, debates, or topics needing 4+ beats." },
-        { role: "user", content: `Day ${entry[0]} ${entry[1]} · Theme: ${entry[3]}\nTopic: ${topic}\n${extra}` },
-      ],
-    }),
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1000,
+      system: SYSTEM,
+      messages: [{
+        role: "user",
+        content: `PLATFORM: ${platform}\n\nFORMAT INSTRUCTIONS:\n${PINSTR[platform]}\n\nTOPIC CONTEXT:\n${extra}\n\nPhase: ${phase}`
+      }]
+    })
   });
-  const d = await r.json();
-  const word = (d.choices?.[0]?.message?.content || "THREAD").toUpperCase();
-  return word.includes("SINGLE") ? "single" : "thread";
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.content?.map(b => b.text || "").join("") || "";
 }
 
-function twitterInstr(format) {
-  return format === "single" ? INSTR.twitter_single : INSTR.twitter;
-}
+// ─── LOCAL STORAGE ────────────────────────────────────────────────────────────
+const SK = "zeus_v8";
+const loadPosts = () => { try { return JSON.parse(localStorage.getItem(SK) || "[]"); } catch { return []; } };
+const savePosts = (p) => { try { localStorage.setItem(SK, JSON.stringify(p)); } catch {} };
 
-function calcMetrics(posts) {
-  const list = normalizePosts(posts);
-  const posted = list.filter((p) => p.posted);
-  const dm = {};
-  posted.forEach((p) => { dm[p.day] = 1; });
-  let streak = 0;
-  for (let i = 30; i >= 1; i--) {
-    if (dm[i]) streak++;
-    else break;
-  }
-  return {
-    totalPosts: list.length,
-    totalPosted: posted.length,
-    reach: list.reduce((s, p) => s + p.reach, 0),
-    likes: list.reduce((s, p) => s + p.likes, 0),
-    drafts: list.filter((p) => !p.posted).length,
-    streak,
-    byDay: Array.from({ length: 30 }, (_, i) => list.filter((p) => p.day === i + 1 && p.posted).length),
-  };
-}
+// ─── PHASE CONFIG ─────────────────────────────────────────────────────────────
+const PHASES = [
+  { label: "Week 1", sub: "Spending Blindspot", color: "#ef4444", days: "1–7" },
+  { label: "Week 2", sub: "Accountability Gap", color: "#f97316", days: "8–14" },
+  { label: "Week 3", sub: "Industry Pattern", color: "#3b82f6", days: "15–21" },
+  { label: "Week 4", sub: "Building in Public", color: "#22c55e", days: "22–28" },
+  { label: "Launch", sub: "🚀 Grassion Goes Live", color: "#a855f7", days: "29–30" },
+];
 
-function fmtMetric(n) {
-  if (n > 999) return `${(n / 1000).toFixed(1)}K`;
-  return String(n);
-}
-
-function TwitterTweets({ content, format, onCopyTweet }) {
-  const lines = getXLines(content, format);
-  return (
-    <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 10 }}>
-      {lines.map((line, i) => {
-        const len = line.length;
-        const ok = len <= TW_CHAR_LIMIT;
-        return (
-          <div key={i} style={{ background: "#111", border: `1px solid ${ok ? "#1f2937" : "#dc262640"}`, borderRadius: 8, padding: "8px 10px" }}>
-            <p style={{ color: "#d1d5db", fontSize: 12, lineHeight: 1.7, margin: 0, whiteSpace: "pre-wrap", fontFamily: "Georgia,serif" }}>{line}</p>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6, gap: 8 }}>
-              <span style={{ color: ok ? "#22c55e" : "#ef4444", fontSize: 10, fontFamily: "monospace", fontWeight: 700 }}>
-                {len}/{TW_CHAR_LIMIT} {ok ? "✓" : "⚠ over limit"}
-              </span>
-              {onCopyTweet && (
-                <button type="button" onClick={() => onCopyTweet(line, i)} style={{ background: "#1da1f222", border: "1px solid #1da1f244", color: "#60a5fa", padding: "3px 8px", borderRadius: 6, fontSize: 10, fontFamily: "monospace", cursor: "pointer" }}>
-                  Copy tweet {i + 1}
-                </button>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ─── TWITTER THREAD POSTING MODAL ──────────────────────────────────────────
-function TwitterModal({ post, onClose, onDone }) {
-  const xFmt = resolveXFormat(post);
-  const lines = getXLines(post.content, xFmt);
-  const isSingle = xFmt === "single";
-  const [idx, setIdx] = useState(0);
-  const [copied, setCopied] = useState(false);
-  const [doneSteps, setDoneSteps] = useState({});
-  const current = lines[idx] || "";
-  const len = current.length;
-  const ok = len <= TW_CHAR_LIMIT;
-  const isLast = idx >= lines.length - 1;
-
-  const copyTweet = () => {
-    navigator.clipboard.writeText(current).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const openX = () => {
-    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(current)}`, "_blank");
-    setDoneSteps((s) => ({ ...s, [idx]: true }));
-  };
-
-  const markDone = () => {
-    setDoneSteps((s) => ({ ...s, [idx]: true }));
-    if (!isLast) setIdx((i) => i + 1);
-    else { onDone(); onClose(); }
-  };
-
-  return (
-    <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: "fixed", inset: 0, background: "#000000f0", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 14 }}>
-      <div style={{ background: "#0d0d0d", border: "1px solid #1da1f240", borderRadius: 16, width: "100%", maxWidth: 520, maxHeight: "92vh", overflow: "auto" }}>
-        <div style={{ padding: "13px 18px", borderBottom: "1px solid #1a1a1a", display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 26, height: 26, background: "#1da1f2", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>🐦</div>
-          <div>
-            <div style={{ color: "#fff", fontFamily: "monospace", fontWeight: 700, fontSize: 12 }}>{isSingle ? "Post on X" : "X Thread Assistant"} · Day {post.day} · {post.slot}</div>
-            <div style={{ color: "#6b7280", fontSize: 10, fontFamily: "monospace" }}>{isSingle ? "Single tweet" : `Tweet ${idx + 1} of ${lines.length}`}</div>
-          </div>
-          <button type="button" onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "1px solid #2d2d2d", color: "#6b7280", padding: "4px 11px", borderRadius: 7, cursor: "pointer", fontSize: 11 }}>✕</button>
-        </div>
-        <div style={{ padding: 16 }}>
-          {!isSingle && (
-            <div style={{ display: "flex", gap: 4, marginBottom: 12, flexWrap: "wrap" }}>
-              {lines.map((_, i) => (
-                <button key={i} type="button" onClick={() => setIdx(i)} style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${idx === i ? "#1da1f2" : doneSteps[i] ? "#22c55e44" : "#2d2d2d"}`, background: idx === i ? "#1da1f222" : doneSteps[i] ? "#22c55e15" : "#111", color: idx === i ? "#60a5fa" : doneSteps[i] ? "#22c55e" : "#6b7280", fontSize: 11, fontFamily: "monospace", cursor: "pointer", fontWeight: 700 }}>
-                  {doneSteps[i] ? "✓" : i + 1}
-                </button>
-              ))}
-            </div>
-          )}
-          {post.img && idx === 0 && (
-            <img src={post.img} alt="" style={{ width: "100%", borderRadius: 9, border: "1px solid #1f2937", marginBottom: 10 }} />
-          )}
-          <div style={{ background: "#111", border: `1px solid ${ok ? "#1f2937" : "#dc2626"}`, borderRadius: 10, padding: 12, marginBottom: 10 }}>
-            <p style={{ color: "#e5e7eb", fontSize: 13, lineHeight: 1.75, margin: 0, whiteSpace: "pre-wrap", fontFamily: "Georgia,serif" }}>{current}</p>
-            <div style={{ color: ok ? "#22c55e" : "#ef4444", fontSize: 10, fontFamily: "monospace", marginTop: 8, fontWeight: 700 }}>{len}/{TW_CHAR_LIMIT}</div>
-          </div>
-          <div style={{ color: "#9ca3af", fontSize: 11, fontFamily: "monospace", lineHeight: 1.6, marginBottom: 12, padding: 10, background: "#0a0a1a", borderRadius: 8, border: "1px solid #1da1f220" }}>
-            {isSingle
-              ? "① Copy → ② Open X → ③ Paste & Post (add image if you have one)"
-              : idx === 0
-              ? "① Copy tweet → ② Open X → ③ Paste & Post (attach image on tweet 1 if you have one)"
-              : "① On X, click Reply on your previous tweet → ② Paste this tweet → ③ Post → repeat for each tweet"}
-          </div>
-          <button type="button" onClick={copyTweet} style={{ width: "100%", padding: 10, background: copied ? "#22c55e15" : "#1da1f2", border: `1.5px solid ${copied ? "#22c55e" : "#1da1f2"}`, borderRadius: 9, color: copied ? "#22c55e" : "#fff", fontSize: 12, fontFamily: "monospace", fontWeight: 700, cursor: "pointer", marginBottom: 8 }}>
-            {copied ? "✓ Copied!" : `📋 Copy tweet ${idx + 1}`}
-          </button>
-          <button type="button" onClick={openX} style={{ width: "100%", padding: 10, background: "#1da1f212", border: "1.5px solid #1da1f2", borderRadius: 9, color: "#60a5fa", fontSize: 12, fontFamily: "monospace", fontWeight: 700, cursor: "pointer", marginBottom: 8 }}>
-            🔗 Open X to post tweet {idx + 1}
-          </button>
-          <button type="button" onClick={markDone} style={{ width: "100%", padding: 10, background: "#22c55e", border: "none", borderRadius: 9, color: "#000", fontSize: 12, fontFamily: "monospace", fontWeight: 700, cursor: "pointer" }}>
-            {isSingle || isLast ? "✓ Done — posted on X!" : `✓ Tweet ${idx + 1} posted → next`}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
+// ─── DOTS LOADER ─────────────────────────────────────────────────────────────
 function Dots() {
-  return <span style={{display:"inline-flex",gap:4}}>
-    {[0,1,2].map(i=><span key={i} style={{width:6,height:6,borderRadius:"50%",background:"#ec4899",display:"inline-block",animation:`zb 1.2s ${i*.2}s infinite`}}/>)}
-    <style>{`@keyframes zb{0%,80%,100%{transform:scale(.4);opacity:.2}40%{transform:scale(1);opacity:1}}`}</style>
-  </span>;
+  return (
+    <span style={{ display: "inline-flex", gap: 4 }}>
+      {[0, 1, 2].map(i => (
+        <span key={i} style={{
+          width: 5, height: 5, borderRadius: "50%", background: "#ec4899",
+          display: "inline-block",
+          animation: `zdot 1.2s ${i * 0.2}s infinite ease-in-out`
+        }} />
+      ))}
+    </span>
+  );
 }
 
-// ─── LINKEDIN POSTING MODAL ───────────────────────────────────────────────
-function Modal({ post, onClose, onDone }) {
-  const [step, setStep] = useState(1);
-  const [id, setId] = useState(false);
-  const [ic, setIc] = useState(false);
-  const dl = () => { const a = document.createElement("a"); a.href = post.img; a.download = `grassion-d${post.day}.png`; a.click(); setId(true); setStep(s=>Math.max(s,2)); };
-  const cp = () => { navigator.clipboard.writeText(post.content).catch(()=>{}); setIc(true); setStep(s=>Math.max(s,3)); };
-  const op = () => { window.open("https://www.linkedin.com/feed/","_blank"); setStep(s=>Math.max(s,4)); };
-  return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:"fixed",inset:0,background:"#000000f0",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:14}}>
-    <div style={{background:"#0d0d0d",border:"1px solid #0077b540",borderRadius:16,width:"100%",maxWidth:800,maxHeight:"92vh",overflow:"auto"}}>
-      <div style={{padding:"13px 18px",borderBottom:"1px solid #1a1a1a",display:"flex",alignItems:"center",gap:10}}>
-        <div style={{width:26,height:26,background:"#0077b5",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}}>💼</div>
-        <div><div style={{color:"#fff",fontFamily:"monospace",fontWeight:700,fontSize:12}}>LinkedIn Posting Assistant · Day {post.day} · {post.slot}</div></div>
-        <button onClick={onClose} style={{marginLeft:"auto",background:"none",border:"1px solid #2d2d2d",color:"#6b7280",padding:"4px 11px",borderRadius:7,cursor:"pointer",fontSize:11}}>✕</button>
-      </div>
-      <div style={{padding:15,display:"grid",gridTemplateColumns:"1fr 1fr",gap:15}}>
-        <div>
-          <div style={{display:"flex",gap:3,marginBottom:13}}>
-            {["① Download","② Copy","③ Open LI","④ Post"].map((s,i)=>{const n=i+1,done=step>n,act=step===n;return<div key={i} style={{flex:1,textAlign:"center"}}>
-              <div style={{width:22,height:22,borderRadius:"50%",background:done?"#22c55e":act?"#0077b5":"#1f2937",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#fff",fontWeight:700,margin:"0 auto 3px"}}>{done?"✓":n}</div>
-              <div style={{fontSize:9,color:done?"#22c55e":act?"#60a5fa":"#374151",fontFamily:"monospace",lineHeight:1.3}}>{s}</div>
-            </div>;})}
-          </div>
-          {post.img && <img src={post.img} alt="" style={{width:"100%",borderRadius:9,border:"1px solid #1f2937",marginBottom:9}}/>}
-          <button onClick={dl} style={{width:"100%",padding:"10px",background:id?"#22c55e15":"#0077b5",border:`1.5px solid ${id?"#22c55e":"#0077b5"}`,borderRadius:9,color:id?"#22c55e":"#fff",fontSize:12,fontFamily:"monospace",fontWeight:700,cursor:"pointer",marginBottom:7}}>{id?"✓ Image saved to computer":"⬇ STEP 1 — Download image"}</button>
-          <button onClick={op} style={{width:"100%",padding:"10px",background:"#0077b512",border:"1.5px solid #0077b5",borderRadius:9,color:"#60a5fa",fontSize:12,fontFamily:"monospace",fontWeight:700,cursor:"pointer",marginBottom:step>=4?11:0}}>{step>=4?"✓ LinkedIn open — go paste":"🔗 STEP 3 — Open LinkedIn"}</button>
-          {step>=4&&<div style={{padding:12,background:"#001a2a",border:"1px solid #0077b528",borderRadius:10}}>
-            <div style={{color:"#60a5fa",fontFamily:"monospace",fontSize:11,fontWeight:700,marginBottom:8}}>In LinkedIn now:</div>
-            {["Click 'Start a post' (white box, top of feed)","Click inside text area","Ctrl+V to paste your text","Click 📷 photo icon, upload your image","Click the blue Post button ✓"].map((s,i)=><div key={i} style={{display:"flex",gap:7,marginBottom:5}}>
-              <div style={{width:17,height:17,borderRadius:"50%",background:"#0077b5",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,color:"#fff",flexShrink:0}}>{i+1}</div>
-              <div style={{color:"#9ca3af",fontSize:11}}>{s}</div>
-            </div>)}
-            <button onClick={()=>{onDone();onClose();}} style={{width:"100%",marginTop:9,padding:"10px",background:"#22c55e",border:"none",borderRadius:9,color:"#000",fontSize:13,fontFamily:"monospace",fontWeight:700,cursor:"pointer"}}>✓ Done — I posted it!</button>
-          </div>}
-        </div>
-        <div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
-            <span style={{color:"#6b7280",fontSize:10,fontFamily:"monospace",letterSpacing:2}}>POST TEXT</span>
-            <button onClick={cp} style={{padding:"5px 13px",background:ic?"#22c55e":"#0077b5",border:"none",borderRadius:7,color:ic?"#000":"#fff",fontSize:11,fontFamily:"monospace",fontWeight:700,cursor:"pointer"}}>{ic?"✓ Copied!":"📋 STEP 2"}</button>
-          </div>
-          <div onClick={cp} style={{background:"#111",border:`1px solid ${ic?"#22c55e40":"#2d2d2d"}`,borderRadius:10,padding:12,maxHeight:320,overflow:"auto",cursor:"pointer",marginBottom:8}}>
-            <p style={{color:"#d1d5db",fontSize:12,lineHeight:1.9,fontFamily:"Georgia,serif",margin:0,whiteSpace:"pre-wrap"}}>{post.content}</p>
-          </div>
-          <div style={{display:"flex",gap:7,marginBottom:9}}>
-            <span style={{padding:"4px 9px",background:"#111",borderRadius:7,color:"#6b7280",fontSize:11,fontFamily:"monospace"}}>{post.content.length} chars</span>
-            <span style={{padding:"4px 9px",background:post.content.length>1300?"#1f0000":"#0a1a0a",borderRadius:7,color:post.content.length>1300?"#f87171":"#22c55e",fontSize:11,fontFamily:"monospace"}}>{post.content.length>1300?"⚠ Long":"✓ Good length"}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>;
-}
+// ─── POST CARD ────────────────────────────────────────────────────────────────
+function PostCard({ post, onDelete, onPosted, accent }) {
+  const [expanded, setExpanded] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const isLI = post.platform === "linkedin";
+  const isX = post.platform === "twitter";
+  const platformColor = isLI ? "#0077b5" : "#1da1f2";
+  const platformLabel = isLI ? "💼 LinkedIn" : "🐦 Twitter/X";
 
-// ─── POST CARD ────────────────────────────────────────────────────────────
-function Card({ post, onPosted, onDelete, onMetric }) {
-  const [exp, setExp] = useState(false);
-  const [li, setLi] = useState(false);
-  const [tw, setTw] = useState(false);
-  const [sm, setSm] = useState(false);
-  const [reach, setReach] = useState(post.reach || "");
-  const [likes, setLikes] = useState(post.likes || "");
-  const [cp, setCp] = useState(false);
-  const [copyN, setCopyN] = useState(null);
-  const p = PLATFORMS.find(pl => pl.id === post.pid);
-  const isLI = post.pid === "linkedin";
-  const isTw = post.pid === "twitter";
-  const xFmt = isTw ? resolveXFormat(post) : null;
-  const isTwSingle = isTw && xFmt === "single";
-  const threadLines = isTw ? getXLines(post.content, xFmt) : [];
-  const openP = () => { navigator.clipboard.writeText(post.content).catch(()=>{}); setCp(true); setTimeout(()=>setCp(false),2500); onPosted(post.id); };
-  const copyOneTweet = (line, i) => { navigator.clipboard.writeText(line).catch(()=>{}); setCopyN(i); setTimeout(()=>setCopyN(null), 2000); };
-  const acc = wc(post.day);
-  return <>
-    {li && <Modal post={post} onClose={()=>setLi(false)} onDone={()=>onPosted(post.id)}/>}
-    {tw && <TwitterModal post={post} onClose={()=>setTw(false)} onDone={()=>onPosted(post.id)}/>}
-    <div style={{background:"#0d0d0d",border:`1px solid ${post.posted?"#22c55e28":"#1f2937"}`,borderRadius:13,overflow:"hidden"}}>
-      <div style={{padding:"9px 13px",display:"flex",alignItems:"center",gap:7,borderBottom:"1px solid #161616",flexWrap:"wrap"}}>
-        <span>{p?.emoji}</span>
-        <span style={{color:p?.color,fontFamily:"monospace",fontSize:12,fontWeight:700}}>{p?.name}</span>
-        <span style={{background:"#1a1a1a",color:"#6b7280",fontSize:10,padding:"2px 7px",borderRadius:5,fontFamily:"monospace"}}>Day {post.day} · {post.slot}</span>
-        <span style={{background:acc+"18",color:acc,fontSize:10,padding:"2px 7px",borderRadius:5,fontFamily:"monospace"}}>{post.theme}</span>
-        {isTw && <span style={{background:"#1da1f218",color:"#60a5fa",fontSize:10,padding:"2px 7px",borderRadius:5,fontFamily:"monospace"}}>{isTwSingle ? "💬 Single" : "🧵 Thread"}</span>}
-        {post.posted && <span style={{background:"#22c55e12",color:"#22c55e",fontSize:10,padding:"2px 7px",borderRadius:6,fontFamily:"monospace",marginLeft:"auto"}}>✓ POSTED</span>}
-      </div>
-      {post.img && <div style={{padding:"9px 13px 0",position:"relative"}}>
-        <img src={post.img} alt="" style={{width:"100%",borderRadius:9,border:"1px solid #1f2937",cursor:isLI?"pointer":"default",display:"block"}} onClick={isLI?()=>setLi(true):undefined}/>
-        {isLI && <div style={{position:"absolute",bottom:9,left:21,background:"#0077b5cc",borderRadius:7,padding:"4px 10px",color:"#fff",fontSize:11,fontFamily:"monospace",cursor:"pointer"}} onClick={()=>setLi(true)}>Click → posting assistant</div>}
-      </div>}
-      {!isLI && !isTw && <div style={{margin:"8px 13px 0",padding:"8px 11px",background:(p?.color||"#555")+"10",border:`1px solid ${(p?.color||"#555")}25`,borderRadius:8}}>
-        <div style={{color:p?.color,fontSize:10,fontFamily:"monospace",fontWeight:700,marginBottom:3}}>HOW TO POST ON {p?.name?.toUpperCase()}</div>
-        <div style={{color:"#6b7280",fontSize:11,fontFamily:"monospace"}}>
-          {post.pid==="reddit"?"① Click Open Reddit → title + body pre-filled ② Review and submit"
-          :"① Click Open → ② Paste content → ③ Add image → Publish"}
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(post.content);
+      setCopying(true);
+      setTimeout(() => setCopying(false), 2000);
+    } catch {}
+  };
+
+  const openPost = () => {
+    if (isLI) {
+      window.open("https://www.linkedin.com/feed/", "_blank");
+    } else {
+      const text = encodeURIComponent(post.content.slice(0, 280));
+      window.open(`https://twitter.com/intent/tweet?text=${text}`, "_blank");
+    }
+    if (!post.posted) onPosted(post.id);
+  };
+
+  const downloadImg = () => {
+    if (!post.img) return;
+    const a = document.createElement("a");
+    a.href = post.img;
+    a.download = `grassion-day${post.day}-${post.slot.replace(":", "")}.png`;
+    a.click();
+  };
+
+  return (
+    <div style={{
+      background: "#0d0d0d",
+      border: `1px solid ${post.posted ? "#22c55e33" : platformColor + "33"}`,
+      borderRadius: 14,
+      overflow: "hidden",
+      transition: "border-color .2s"
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: "10px 14px",
+        borderBottom: "1px solid #1a1a1a",
+        display: "flex",
+        alignItems: "center",
+        gap: 10
+      }}>
+        <div style={{
+          background: platformColor + "20",
+          border: `1px solid ${platformColor}40`,
+          borderRadius: 8,
+          padding: "3px 10px",
+          fontSize: 11,
+          color: platformColor,
+          fontWeight: 700
+        }}>{platformLabel}</div>
+        <div style={{ fontSize: 11, color: "#6b7280" }}>
+          Day {post.day} · {post.slot} · {post.phase}
         </div>
-      </div>}
-      {isTw && (
-        <div style={{ margin: "8px 13px 0", padding: "8px 11px", background: "#1da1f210", border: "1px solid #1da1f230", borderRadius: 8 }}>
-          <div style={{ color: "#60a5fa", fontSize: 10, fontFamily: "monospace", fontWeight: 700, marginBottom: 3 }}>{isTwSingle ? "X · SINGLE TWEET" : `X THREAD · ${threadLines.length} TWEETS`}</div>
-          <div style={{ color: "#9ca3af", fontSize: 11, fontFamily: "monospace" }}>{isTwSingle ? "One click to copy and post on X." : "Use Thread Assistant — post tweet 1, then reply with 2, 3, …"}</div>
+        {post.posted && (
+          <div style={{ marginLeft: "auto", color: "#22c55e", fontSize: 11 }}>✓ Posted</div>
+        )}
+        <button onClick={() => onDelete(post.id)} style={{
+          marginLeft: post.posted ? 8 : "auto",
+          background: "none", border: "none",
+          color: "#374151", cursor: "pointer", fontSize: 13, padding: "0 4px"
+        }}>✕</button>
+      </div>
+
+      {/* Topic */}
+      <div style={{ padding: "10px 14px 0", fontSize: 12, color: accent || "#9ca3af", fontWeight: 700 }}>
+        {post.topic}
+      </div>
+
+      {/* Content preview */}
+      <div style={{ padding: "8px 14px 12px" }}>
+        <div style={{
+          fontSize: 13,
+          color: "#d1d5db",
+          lineHeight: 1.65,
+          maxHeight: expanded ? "none" : 90,
+          overflow: "hidden",
+          whiteSpace: "pre-wrap",
+          fontFamily: "'Georgia', serif",
+          position: "relative"
+        }}>
+          {post.content}
+          {!expanded && (
+            <div style={{
+              position: "absolute", bottom: 0, left: 0, right: 0, height: 40,
+              background: "linear-gradient(transparent, #0d0d0d)"
+            }} />
+          )}
+        </div>
+        <button onClick={() => setExpanded(e => !e)} style={{
+          background: "none", border: "none", color: "#6b7280",
+          cursor: "pointer", fontSize: 11, padding: "4px 0", fontFamily: "monospace"
+        }}>
+          {expanded ? "▲ Collapse" : "▼ Show full post"}
+        </button>
+      </div>
+
+      {/* Image preview */}
+      {post.img && (
+        <div style={{ padding: "0 14px 10px" }}>
+          <img src={post.img} alt="post visual" style={{
+            width: "100%", borderRadius: 10, border: `1px solid ${platformColor}22`,
+            maxHeight: 200, objectFit: "cover"
+          }} />
         </div>
       )}
-      <div style={{padding:"10px 13px 4px"}}>
-        {isTw ? (
-          <>
-            {isTwSingle ? (
-              <div style={{ background: "#111", border: "1px solid #1f2937", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
-                <p style={{ color: "#d1d5db", fontSize: 13, lineHeight: 1.75, margin: 0, fontFamily: "Georgia,serif", whiteSpace: "pre-wrap" }}>{threadLines[0]}</p>
-                <div style={{ color: threadLines[0]?.length <= TW_CHAR_LIMIT ? "#22c55e" : "#ef4444", fontSize: 10, fontFamily: "monospace", marginTop: 6, fontWeight: 700 }}>{threadLines[0]?.length || 0}/{TW_CHAR_LIMIT} ✓</div>
-              </div>
-            ) : (
-              <>
-                {!exp && threadLines[0] && (
-                  <div style={{ background: "#111", border: "1px solid #1f2937", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
-                    <p style={{ color: "#d1d5db", fontSize: 12, lineHeight: 1.7, margin: 0, fontFamily: "Georgia,serif" }}>{threadLines[0]}</p>
-                    <div style={{ color: "#22c55e", fontSize: 10, fontFamily: "monospace", marginTop: 6 }}>{threadLines[0].length}/{TW_CHAR_LIMIT} ✓ · +{threadLines.length - 1} more in thread</div>
-                  </div>
-                )}
-                {exp && <TwitterTweets content={post.content} format={xFmt} onCopyTweet={copyOneTweet} />}
-                {threadLines.length > 1 && (
-                  <button type="button" onClick={() => setExp(!exp)} style={{ background: "none", border: "none", color: "#1da1f2", fontSize: 12, cursor: "pointer", fontFamily: "monospace", marginBottom: 4 }}>
-                    {exp ? "▲ Collapse thread" : `▼ Show all ${threadLines.length} tweets`}
-                  </button>
-                )}
-              </>
-            )}
-            {copyN !== null && <div style={{ color: "#22c55e", fontSize: 10, fontFamily: "monospace", marginBottom: 4 }}>✓ {isTwSingle ? "Tweet copied" : `Tweet ${copyN + 1} copied`}</div>}
-          </>
-        ) : (
-          <>
-            <p style={{color:"#d1d5db",fontSize:13,lineHeight:1.85,fontFamily:"Georgia,serif",margin:0,whiteSpace:"pre-wrap"}}>{exp ? post.content : post.content.slice(0,220)}{!exp && post.content.length>220 && "…"}</p>
-            {post.content.length > 220 && <button onClick={()=>setExp(!exp)} style={{background:"none",border:"none",color:"#ec4899",fontSize:12,cursor:"pointer",fontFamily:"monospace"}}>{exp?"▲ less":"▼ read full"}</button>}
-          </>
+
+      {/* Actions */}
+      <div style={{
+        padding: "10px 14px 12px",
+        borderTop: "1px solid #1a1a1a",
+        display: "flex", gap: 8, flexWrap: "wrap"
+      }}>
+        <button onClick={copy} style={{
+          padding: "8px 14px",
+          background: copying ? "#14301a" : "#111",
+          border: `1px solid ${copying ? "#22c55e" : "#2d2d2d"}`,
+          color: copying ? "#22c55e" : "#9ca3af",
+          borderRadius: 8, cursor: "pointer", fontSize: 11,
+          fontFamily: "monospace", fontWeight: 700, transition: "all .2s"
+        }}>
+          {copying ? "✓ Copied!" : "📋 Copy text"}
+        </button>
+        <button onClick={openPost} style={{
+          padding: "8px 14px",
+          background: platformColor + "20",
+          border: `1px solid ${platformColor}60`,
+          color: platformColor,
+          borderRadius: 8, cursor: "pointer", fontSize: 11,
+          fontFamily: "monospace", fontWeight: 700
+        }}>
+          🚀 Open {isLI ? "LinkedIn" : "Twitter/X"}
+        </button>
+        {post.img && (
+          <button onClick={downloadImg} style={{
+            padding: "8px 14px",
+            background: "#111",
+            border: "1px solid #2d2d2d",
+            color: "#9ca3af",
+            borderRadius: 8, cursor: "pointer", fontSize: 11,
+            fontFamily: "monospace"
+          }}>
+            🖼 Download image
+          </button>
         )}
       </div>
-      {sm && <div style={{margin:"0 13px 8px",padding:"9px",background:"#111",borderRadius:9,display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>
-        <input value={reach} onChange={e=>setReach(e.target.value)} placeholder="Impressions" style={{flex:1,minWidth:80,padding:"6px 8px",background:"#0d0d0d",border:"1px solid #2d2d2d",borderRadius:6,color:"#e5e7eb",fontSize:12,fontFamily:"monospace",outline:"none"}}/>
-        <input value={likes} onChange={e=>setLikes(e.target.value)} placeholder="Likes" style={{width:65,padding:"6px 8px",background:"#0d0d0d",border:"1px solid #2d2d2d",borderRadius:6,color:"#e5e7eb",fontSize:12,fontFamily:"monospace",outline:"none"}}/>
-        <button onClick={()=>{onMetric(post.id,{reach:+reach||0,likes:+likes||0});setSm(false);}} style={{padding:"6px 12px",background:"#22c55e",border:"none",borderRadius:6,color:"#000",fontSize:12,fontFamily:"monospace",fontWeight:700,cursor:"pointer"}}>Save</button>
-      </div>}
-      {post.posted && post.reach>0 && <div style={{margin:"0 13px 7px",display:"flex",gap:10,padding:"6px 10px",background:"#111",borderRadius:7}}>
-        <span style={{color:"#3b82f6",fontSize:11,fontFamily:"monospace"}}>👁 {post.reach.toLocaleString()}</span>
-        {post.likes>0 && <span style={{color:"#ec4899",fontSize:11,fontFamily:"monospace"}}>❤ {post.likes}</span>}
-      </div>}
-      <div style={{padding:"8px 13px 12px",display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>
-        {isLI
-          ? <button type="button" onClick={()=>setLi(true)} style={{padding:"8px 14px",background:"#0077b5",border:"none",borderRadius:8,color:"#fff",fontSize:12,fontFamily:"monospace",fontWeight:700,cursor:"pointer"}}>💼 LinkedIn Assistant</button>
-          : isTw
-          ? <button type="button" onClick={()=>setTw(true)} style={{padding:"8px 14px",background:"#1da1f2",border:"none",borderRadius:8,color:"#fff",fontSize:12,fontFamily:"monospace",fontWeight:700,cursor:"pointer"}}>{isTwSingle ? "🐦 Post on X" : "🐦 Thread Assistant"}</button>
-          : <a href={p?.url(post.content)||"#"} target="_blank" rel="noreferrer" onClick={openP} style={{padding:"8px 14px",background:cp?"#22c55e":(p?.color||"#555"),color:cp?"#000":"#fff",borderRadius:8,textDecoration:"none",fontSize:12,fontFamily:"monospace",fontWeight:700,transition:"background .2s"}}>
-              {cp ? "✓ Copied! Open the tab" : `🔗 Open ${p?.name}`}
-            </a>}
-        <button onClick={()=>setSm(!sm)} style={{background:"#1a1a1a",border:"1px solid #2d2d2d",color:"#9ca3af",padding:"8px 12px",borderRadius:8,fontSize:12,fontFamily:"monospace",cursor:"pointer"}}>📊 Metrics</button>
-        <button onClick={()=>onDelete(post.id)} style={{background:"none",border:"none",color:"#374151",fontSize:11,cursor:"pointer",fontFamily:"monospace",marginLeft:"auto"}}>✕</button>
-      </div>
     </div>
-  </>;
+  );
 }
 
-// ─── MAIN COMPONENT ───────────────────────────────────────────────────────
-export default function ZeusAgent() {
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+export default function App() {
   const [tab, setTab] = useState("cal");
-  const [posts, setPosts] = useState(() => lp());
-  const [gen, setGen] = useState(null);
-  const [gst, setGst] = useState("");
+  const [posts, setPosts] = useState(loadPosts);
+  const [generating, setGenerating] = useState(null); // {day,slot}
+  const [genStatus, setGenStatus] = useState("");
   const [toast, setToast] = useState(null);
-  const [sel, setSel] = useState(["linkedin","twitter"]);
-  const [xFormat, setXFormat] = useState(() => {
-    try { return localStorage.getItem("zeus_x_format") || "auto"; } catch { return "auto"; }
+  const [selectedDay, setSelectedDay] = useState(() => {
+    const today = new Date();
+    const d = today.getDate();
+    return Math.min(d, 30);
   });
-  const [day, setDay] = useState(1);
-  const [filt, setFilt] = useState("all");
-  const [ist, setIst] = useState("");
-
-  const [oKey, setOKey] = useState(getOpenAIKey);
+  const [filterPlatform, setFilterPlatform] = useState("all");
+  const [istTime, setIstTime] = useState("");
 
   useEffect(() => {
-    const refreshKey = () => setOKey(getOpenAIKey());
-    refreshKey();
-    window.addEventListener("storage", refreshKey);
-    window.addEventListener("hqf-creds-updated", refreshKey);
-    document.addEventListener("visibilitychange", refreshKey);
-    return () => {
-      window.removeEventListener("storage", refreshKey);
-      window.removeEventListener("hqf-creds-updated", refreshKey);
-      document.removeEventListener("visibilitychange", refreshKey);
+    const tick = () => {
+      setIstTime(new Intl.DateTimeFormat("en-IN", {
+        timeZone: "Asia/Kolkata",
+        hour: "2-digit", minute: "2-digit", hour12: false
+      }).format(new Date()));
     };
+    tick();
+    const id = setInterval(tick, 30000);
+    return () => clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    const t = () => setIst(new Intl.DateTimeFormat("en-IN",{timeZone:"Asia/Kolkata",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date()));
-    t(); const id = setInterval(t, 30000); return () => clearInterval(id);
-  }, []);
-  useEffect(() => { sp(posts); }, [posts]);
-  useEffect(() => {
-    if (tab === "metrics") setPosts(lp());
-  }, [tab]);
+  useEffect(() => { savePosts(posts); }, [posts]);
 
-  const toast_ = (m, tp="ok") => { setToast({m,tp}); setTimeout(()=>setToast(null),3500); };
-
-  const mt = useMemo(() => calcMetrics(posts), [posts]);
-
-  const doGen = async (entry) => {
-    const key = getOpenAIKey();
-    if (!key) { toast_("Add your OpenAI key in the 🔑 Keys tab → SAVE, then try again","err"); return; }
-    if (!sel.length) { toast_("Select at least one platform","err"); return; }
-    setGen({ day: entry[0], slot: entry[1] });
-    const np = [];
-    const failed = [];
-    for (const pid of sel) {
-      const pname = PLATFORMS.find((p) => p.id === pid)?.name || pid;
-      setGst(`Writing ${pname}…`);
-      try {
-        const extra = EXTRA[entry[4]] || `Write about: "${entry[4]}". ${entry[3]==="LAUNCH"||entry[3]==="POST-LAUNCH"?"Include grassion.com at the end.":"No product promotion whatsoever."}`;
-        let twFmt = null;
-        if (pid === "twitter") {
-          twFmt = xFormat;
-          if (twFmt === "auto") {
-            setGst("AI picking single vs thread…");
-            twFmt = await recommendTwitterFormat(key, entry[4], extra, entry);
-            toast_(`AI recommends: ${twFmt === "thread" ? "🧵 Thread" : "💬 Single tweet"}`, "ok");
-          }
-          setGst(`Writing ${pname} (${twFmt})…`);
-        }
-        const instr = pid === "twitter" ? twitterInstr(twFmt) : (INSTR[pid] || INSTR.linkedin);
-        const twSystem = pid === "twitter"
-          ? (twFmt === "single"
-            ? "\n\nSINGLE TWEET RULE: One tweet only. No 1/ numbering. Under 270 characters."
-            : "\n\nTHREAD RULE: Each numbered tweet must be STRICTLY under 280 characters including the number prefix.")
-          : "";
-        const r = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
-            max_tokens: pid === "twitter" ? (twFmt === "single" ? 400 : 2500) : 1500,
-            messages: [
-              { role: "system", content: SYSTEM + twSystem },
-              { role: "user", content: `PLATFORM: ${pname}\nINSTRUCTIONS: ${instr}\nTOPIC: ${entry[4]}\nADDITIONAL CONTEXT: ${extra}` },
-            ],
-          }),
-        });
-        const d = await r.json();
-        if (!r.ok) throw new Error(d.error?.message || `HTTP ${r.status}`);
-        if (d.error) throw new Error(d.error.message);
-        let content = (d.choices?.[0]?.message?.content || "").trim();
-        if (!content) throw new Error("OpenAI returned empty content");
-        if (pid === "twitter") content = normalizeTwitterContent(content, twFmt);
-        let img = null;
-        if (pid === "linkedin" || pid === "twitter") {
-          try { img = makeImg(entry[0], entry[1], entry[4], entry[5]); } catch { /* image optional */ }
-        }
-        np.push({ id: `${Date.now()}_${pid}`, pid, day: entry[0], slot: entry[1], theme: entry[3], topic: entry[4], content, img, xFormat: twFmt || undefined, posted: false, reach: 0, likes: 0, createdAt: Date.now() });
-      } catch (e) {
-        failed.push(`${pname}: ${e.message}`);
-        toast_(`${pname} failed: ${e.message}`, "err");
-      }
-    }
-    if (np.length) {
-      setPosts((p) => {
-        const next = [...np, ...p];
-        const saved = sp(next);
-        if (saved === false) toast_("Posts created but could not save to browser — export a backup", "err");
-        return next;
-      });
-      toast_(`✓ ${np.length} post${np.length > 1 ? "s" : ""} ready`);
-      setTab("posts");
-    } else if (failed.length) {
-      toast_(failed.join(" · "), "err");
-    } else {
-      toast_("Nothing generated — check OpenAI key and platform selection", "err");
-    }
-    setGen(null);
-    setGst("");
-    setOKey(key);
+  const showToast = (msg, type = "ok") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
   };
 
   const calByDay = {};
-  CAL.forEach(e => { if (!calByDay[e[0]]) calByDay[e[0]] = []; calByDay[e[0]].push(e); });
-  const fp = posts.filter(p=>filt==="all"||p.pid===filt);
-  const PHASES = [["Week 1","Spending Blindspot","#dc2626","1–7"],["Week 2","Accountability Gap","#f97316","8–14"],["Week 3","Industry Pattern","#3b82f6","15–21"],["Week 4","Building in Public","#22c55e","22–28"],["Days 29–30","🚀 LAUNCH","#a855f7","29–30"]];
+  CAL.forEach(e => {
+    if (!calByDay[e[0]]) calByDay[e[0]] = [];
+    calByDay[e[0]].push(e);
+  });
 
-  return <div style={{fontFamily:"monospace",background:"#080808",height:"100%",color:"#e5e7eb",display:"flex",flexDirection:"column",overflow:"hidden"}}>
-    <style>{`*{box-sizing:border-box}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#ec4899}button:active{transform:scale(.97)}input:focus,textarea:focus{outline:none}@keyframes fu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}`}</style>
+  const doGenerate = async (entry) => {
+    const [day, slot,, phase, topic, accent] = entry;
+    setGenerating({ day, slot });
 
-    {toast && <div style={{position:"fixed",top:14,right:14,zIndex:9998,background:toast.tp==="err"?"#1f0000":"#001f0a",border:`1px solid ${toast.tp==="err"?"#dc2626":"#22c55e"}`,color:toast.tp==="err"?"#f87171":"#4ade80",padding:"8px 15px",borderRadius:9,fontSize:13,animation:"fu .2s"}}>{toast.m}</div>}
+    for (const platform of ["linkedin", "twitter"]) {
+      const pName = platform === "linkedin" ? "LinkedIn" : "Twitter/X";
+      setGenStatus(`Writing ${pName}…`);
+      try {
+        const content = await generatePost(topic, phase, platform);
+        const img = makeImage(day, slot, topic, accent, phase);
+        setPosts(prev => [{
+          id: `${Date.now()}_${platform}`,
+          platform,
+          day, slot, phase, topic, accent,
+          content, img,
+          posted: false,
+          createdAt: Date.now()
+        }, ...prev]);
+      } catch (e) {
+        showToast(`Error: ${e.message}`, "err");
+      }
+    }
 
-    {/* ZEUS Header */}
-    <div style={{borderBottom:"1px solid #161616",padding:"9px 15px",display:"flex",alignItems:"center",gap:10,background:"#0a0a0a",flexShrink:0,flexWrap:"wrap"}}>
-      <div style={{width:28,height:28,borderRadius:"50%",background:"linear-gradient(135deg,#ec4899,#f97316)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>⚡</div>
-      <div>
-        <div style={{fontSize:13,fontWeight:700,color:"#fff",letterSpacing:1}}>ZEUS — 30-Day Launch Campaign</div>
-        <div style={{fontSize:9,color:"#4b5563",letterSpacing:2}}>GRASSION SOCIAL AGENT · NO PRODUCT MENTION UNTIL DAY 29</div>
+    showToast(`✓ Day ${day} ${slot} — LinkedIn + Twitter ready`);
+    setGenerating(null);
+    setGenStatus("");
+    setTab("posts");
+  };
+
+  const dayPosts = calByDay[selectedDay] || [];
+  const filteredPosts = posts.filter(p => filterPlatform === "all" || p.platform === filterPlatform);
+  const totalPosted = posts.filter(p => p.posted).length;
+  const totalDrafts = posts.filter(p => !p.posted).length;
+
+  const phaseColor = (day) => {
+    if (day <= 7) return "#ef4444";
+    if (day <= 14) return "#f97316";
+    if (day <= 21) return "#3b82f6";
+    if (day <= 28) return "#22c55e";
+    return "#a855f7";
+  };
+
+  return (
+    <div style={{ fontFamily: "monospace", background: "#080808", minHeight: "100vh", color: "#e5e7eb" }}>
+      <style>{`
+        * { box-sizing: border-box; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-thumb { background: #ec4899; border-radius: 2px; }
+        button:active { transform: scale(.97); }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+        @keyframes zdot { 0%,80%,100% { transform: scale(.3); opacity: .2; } 40% { transform: scale(1); opacity: 1; } }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+      `}</style>
+
+      {/* Toast */}
+      {toast && (
+        <div style={{
+          position: "fixed", top: 16, right: 16, zIndex: 9999,
+          background: toast.type === "err" ? "#1f0000" : "#001a0a",
+          border: `1px solid ${toast.type === "err" ? "#dc2626" : "#22c55e"}`,
+          color: toast.type === "err" ? "#f87171" : "#4ade80",
+          padding: "10px 18px", borderRadius: 10, fontSize: 13,
+          animation: "fadeUp .2s", fontFamily: "monospace"
+        }}>{toast.msg}</div>
+      )}
+
+      {/* Header */}
+      <div style={{
+        borderBottom: "1px solid #161616",
+        padding: "12px 20px",
+        display: "flex", alignItems: "center", gap: 12,
+        background: "#0a0a0a", flexWrap: "wrap"
+      }}>
+        <div style={{
+          width: 34, height: 34, borderRadius: "50%",
+          background: "linear-gradient(135deg, #ec4899, #f97316)",
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17
+        }}>⚡</div>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", letterSpacing: 1 }}>ZEUS</div>
+          <div style={{ fontSize: 9, color: "#4b5563", letterSpacing: 3 }}>GRASSION SOCIAL AGENT</div>
+        </div>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 7, flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{
+            background: "#0a1a0a", border: "1px solid #22c55e22",
+            borderRadius: 18, padding: "3px 11px", fontSize: 11, color: "#22c55e",
+            display: "flex", alignItems: "center", gap: 5
+          }}>
+            <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#22c55e", animation: "pulse 2s infinite" }} />
+            IST {istTime}
+          </div>
+          {totalPosted > 0 && (
+            <div style={{ background: "#1a0010", border: "1px solid #ec489922", borderRadius: 18, padding: "3px 11px", fontSize: 11, color: "#ec4899" }}>
+              {totalPosted} posted
+            </div>
+          )}
+          {totalDrafts > 0 && (
+            <div style={{ background: "#0a0a1a", border: "1px solid #3b82f622", borderRadius: 18, padding: "3px 11px", fontSize: 11, color: "#3b82f6" }}>
+              {totalDrafts} drafts
+            </div>
+          )}
+        </div>
       </div>
-      <div style={{marginLeft:"auto",display:"flex",gap:5,flexWrap:"wrap"}}>
-        {[{t:`IST ${ist}`,c:"#22c55e",b:"#0a1a0a",pulse:true},{t:`${mt.totalPosted} posted`,c:"#ec4899",b:"#1a0010"},{t:`${mt.drafts} drafts`,c:"#3b82f6",b:"#0a0a1a"},{t:mt.streak>0?`🔥${mt.streak}d`:"",c:"#f97316",b:"#1a0a00"}].filter(x=>x.t).map((x,i)=>(
-          <div key={i} style={{background:x.b,border:"1px solid "+x.c+"22",borderRadius:16,padding:"2px 9px",fontSize:10,color:x.c,display:"flex",alignItems:"center",gap:4}}>
-            {x.pulse && <div style={{width:5,height:5,borderRadius:"50%",background:"#22c55e",animation:"pulse 2s infinite"}}/>}{x.t}
+
+      {/* Phase ribbon */}
+      <div style={{
+        background: "#09080a", borderBottom: "1px solid #1a1a1a",
+        padding: "8px 20px", display: "flex", gap: 7, overflowX: "auto"
+      }}>
+        {PHASES.map(p => (
+          <div key={p.label} style={{
+            flexShrink: 0, padding: "5px 12px",
+            background: p.color + "14", border: `1px solid ${p.color}25`, borderRadius: 9
+          }}>
+            <div style={{ color: p.color, fontSize: 9, fontWeight: 700 }}>{p.label} · {p.days}</div>
+            <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 2 }}>{p.sub}</div>
           </div>
         ))}
-        {!oKey && <div style={{background:"#1f0000",border:"1px solid #dc2626",borderRadius:16,padding:"2px 9px",fontSize:10,color:"#f87171"}}>⚠ No OpenAI key</div>}
       </div>
-    </div>
 
-    {/* Phase banner */}
-    <div style={{background:"#09080a",borderBottom:"1px solid #1a1a1a",padding:"6px 15px",display:"flex",gap:6,overflowX:"auto",flexShrink:0}}>
-      {PHASES.map(([l,s,c,d])=>(
-        <div key={l} style={{flexShrink:0,padding:"4px 9px",background:c+"14",border:`1px solid ${c}25`,borderRadius:7}}>
-          <div style={{color:c,fontSize:9,fontWeight:700}}>{l} · {d}</div>
-          <div style={{color:"#9ca3af",fontSize:10,marginTop:1}}>{s}</div>
-        </div>
-      ))}
-    </div>
+      {/* Tabs */}
+      <div style={{
+        display: "flex", borderBottom: "1px solid #161616",
+        background: "#0a0a0a", padding: "0 20px", overflowX: "auto"
+      }}>
+        {[
+          ["cal", "🗓 Calendar"],
+          ["posts", `📋 Drafts${posts.length > 0 ? ` (${posts.length})` : ""}`],
+          ["metrics", "📊 Stats"]
+        ].map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{
+            padding: "11px 16px", background: "none", border: "none",
+            borderBottom: `2px solid ${tab === id ? "#ec4899" : "transparent"}`,
+            color: tab === id ? "#ec4899" : "#4b5563",
+            cursor: "pointer", fontSize: 11, fontFamily: "monospace", whiteSpace: "nowrap"
+          }}>{label}</button>
+        ))}
+      </div>
 
-    {/* Tabs */}
-    <div style={{display:"flex",borderBottom:"1px solid #161616",background:"#0a0a0a",padding:"0 15px",flexShrink:0,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-      {[["cal","📅 Calendar"],["posts",`📄 Drafts (${posts.length})`],["metrics","📊 Metrics"]].map(([id,l])=>(
-        <button key={id} onClick={()=>setTab(id)} style={{padding:"9px 13px",background:"none",border:"none",borderBottom:`2px solid ${tab===id?"#ec4899":"transparent"}`,color:tab===id?"#ec4899":"#4b5563",cursor:"pointer",fontSize:11,fontFamily:"monospace",whiteSpace:"nowrap"}}>{l}</button>
-      ))}
-    </div>
-
-    {/* Content */}
-    <div style={{flex:1,overflow:"auto"}}>
-      <div style={{maxWidth:860,margin:"0 auto",padding:"13px 12px"}}>
+      {/* Content */}
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "16px 14px" }}>
 
         {/* ── CALENDAR TAB ── */}
-        {tab==="cal" && <div style={{animation:"fu .2s"}}>
-          <div style={{background:"#0d0d0d",border:"1px solid #1f2937",borderRadius:12,padding:"12px 14px",marginBottom:10}}>
-            <div style={{fontSize:10,color:"#6b7280",letterSpacing:2,marginBottom:8}}>PLATFORMS — {sel.length} selected · generates image for LinkedIn + Twitter</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-              {PLATFORMS.map(p=>{const s=sel.includes(p.id);return(
-                <button key={p.id} onClick={()=>setSel(prev=>s?prev.filter(x=>x!==p.id):[...prev,p.id])} style={{padding:"5px 10px",borderRadius:16,border:`1.5px solid ${s?p.color:"#2d2d2d"}`,background:s?p.color+"20":"transparent",color:s?p.color:"#4b5563",fontSize:11,fontFamily:"monospace",cursor:"pointer"}}>
-                  {p.emoji} {p.name}
-                </button>
-              );})}
+        {tab === "cal" && (
+          <div style={{ animation: "fadeUp .2s" }}>
+            {/* Platform note */}
+            <div style={{
+              background: "#0d0d0d",
+              border: "1px solid #1f2937",
+              borderRadius: 12,
+              padding: "12px 16px",
+              marginBottom: 12,
+              display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap"
+            }}>
+              <div style={{ fontSize: 11, color: "#6b7280" }}>Generates for:</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ padding: "4px 12px", background: "#0077b520", border: "1px solid #0077b560", borderRadius: 20, color: "#0077b5", fontSize: 11, fontWeight: 700 }}>
+                  💼 LinkedIn
+                </div>
+                <div style={{ padding: "4px 12px", background: "#1da1f220", border: "1px solid #1da1f260", borderRadius: 20, color: "#1da1f2", fontSize: 11, fontWeight: 700 }}>
+                  🐦 Twitter/X
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: "#374151" }}>+ image for each</div>
             </div>
-          </div>
-          {sel.includes("twitter") && (
-            <div style={{ background: "#0d0d0d", border: "1px solid #1da1f330", borderRadius: 12, padding: "12px 14px", marginBottom: 10 }}>
-              <div style={{ fontSize: 10, color: "#6b7280", letterSpacing: 2, marginBottom: 8 }}>X / TWITTER FORMAT</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {TW_FORMAT_OPTS.map((o) => {
-                  const on = xFormat === o.id;
+
+            {/* Day selector */}
+            <div style={{
+              background: "#0d0d0d",
+              border: "1px solid #1f2937",
+              borderRadius: 12, padding: "12px 16px", marginBottom: 12
+            }}>
+              <div style={{ fontSize: 10, color: "#6b7280", letterSpacing: 2, marginBottom: 10 }}>SELECT DAY</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                {Array.from({ length: 30 }, (_, i) => i + 1).map(d => {
+                  const hasPosted = posts.some(p => p.day === d && p.posted);
+                  const hasDraft = posts.some(p => p.day === d && !p.posted);
+                  const c = phaseColor(d);
                   return (
-                    <button
-                      key={o.id}
-                      type="button"
-                      title={o.hint}
-                      onClick={() => { setXFormat(o.id); try { localStorage.setItem("zeus_x_format", o.id); } catch {} }}
-                      style={{ padding: "6px 12px", borderRadius: 16, border: `1.5px solid ${on ? "#1da1f2" : "#2d2d2d"}`, background: on ? "#1da1f222" : "transparent", color: on ? "#60a5fa" : "#6b7280", fontSize: 11, fontFamily: "monospace", cursor: "pointer", fontWeight: on ? 700 : 400 }}
-                    >
-                      {o.label}
+                    <button key={d} onClick={() => setSelectedDay(d)} style={{
+                      width: 33, height: 33, borderRadius: 8,
+                      border: `1.5px solid ${selectedDay === d ? c : hasPosted ? c + "55" : hasDraft ? c + "33" : "#1f2937"}`,
+                      background: selectedDay === d ? c + "22" : "transparent",
+                      color: selectedDay === d ? c : hasPosted ? c : hasDraft ? c + "88" : "#374151",
+                      cursor: "pointer", fontSize: 11, fontFamily: "monospace",
+                      fontWeight: selectedDay === d ? 700 : 400,
+                      position: "relative"
+                    }}>
+                      {d}
+                      {hasPosted && <div style={{ position: "absolute", top: 2, right: 2, width: 4, height: 4, borderRadius: "50%", background: c }} />}
                     </button>
                   );
                 })}
               </div>
-              <div style={{ color: "#4b5563", fontSize: 10, fontFamily: "monospace", marginTop: 8 }}>{TW_FORMAT_OPTS.find((o) => o.id === xFormat)?.hint}</div>
             </div>
-          )}
-          <div style={{background:"#0d0d0d",border:"1px solid #1f2937",borderRadius:12,padding:"12px 14px",marginBottom:10}}>
-            <div style={{fontSize:10,color:"#6b7280",letterSpacing:2,marginBottom:8}}>SELECT DAY (1–30)</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-              {Array.from({length:30},(_,i)=>i+1).map(d=>{
-                const hp=posts.some(p=>p.day===d&&p.posted),hd=posts.some(p=>p.day===d&&!p.posted),c=wc(d);
-                return<button key={d} onClick={()=>setDay(d)} style={{width:32,height:32,borderRadius:7,border:`1.5px solid ${day===d?c:hp?c+"55":hd?c+"33":"#1f2937"}`,background:day===d?c+"22":"transparent",color:day===d?c:hp?c:hd?c+"77":"#374151",cursor:"pointer",fontSize:11,fontFamily:"monospace",fontWeight:day===d?700:400}}>{d}</button>;
-              })}
-            </div>
-          </div>
-          {(calByDay[day]||[]).map((e,i)=>{
-            const sp=posts.filter(p=>p.day===e[0]&&p.slot===e[1]);
-            const isG=gen?.day===e[0]&&gen?.slot===e[1];
-            const c=wc(e[0]);
-            return<div key={i} style={{background:"#0d0d0d",border:`1px solid ${c}20`,borderRadius:12,padding:"14px",marginBottom:10}}>
-              <div style={{display:"flex",gap:10,marginBottom:10}}>
-                <div style={{background:c+"14",border:`1px solid ${c}25`,borderRadius:9,padding:"8px 12px",textAlign:"center",flexShrink:0,minWidth:58}}>
-                  <div style={{fontSize:16}}>{e[1]==="9am"?"🌅":"🌆"}</div>
-                  <div style={{color:c,fontSize:11,fontWeight:700,marginTop:2}}>{e[1]}</div>
-                </div>
-                <div style={{flex:1}}>
-                  <div style={{display:"flex",gap:6,marginBottom:5,flexWrap:"wrap"}}>
-                    <span style={{background:c+"18",color:c,fontSize:10,padding:"2px 8px",borderRadius:6}}>Wk{e[2]}: {e[3]}</span>
+
+            {/* Day entries */}
+            {dayPosts.map((entry, i) => {
+              const [day, slot,, phase, topic, accent] = entry;
+              const isGenerating = generating?.day === day && generating?.slot === slot;
+              const existingPosts = posts.filter(p => p.day === day && p.slot === slot);
+              const c = accent;
+
+              return (
+                <div key={i} style={{
+                  background: "#0d0d0d",
+                  border: `1px solid ${c}20`,
+                  borderRadius: 13, padding: "15px 16px", marginBottom: 11
+                }}>
+                  <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                    <div style={{
+                      background: c + "14", border: `1px solid ${c}25`,
+                      borderRadius: 10, padding: "10px 14px", textAlign: "center",
+                      flexShrink: 0, minWidth: 64
+                    }}>
+                      <div style={{ fontSize: 18 }}>{slot === "9am" ? "🌅" : "🌆"}</div>
+                      <div style={{ color: c, fontSize: 12, fontWeight: 700, marginTop: 3 }}>{slot}</div>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ marginBottom: 5 }}>
+                        <span style={{
+                          background: c + "18", color: c,
+                          fontSize: 10, padding: "2px 9px", borderRadius: 6
+                        }}>Week {Math.ceil(day / 7)} · {phase}</span>
+                      </div>
+                      <div style={{ color: "#e5e7eb", fontSize: 14, fontWeight: 700, lineHeight: 1.4 }}>{topic}</div>
+                    </div>
                   </div>
-                  <div style={{color:"#e5e7eb",fontSize:14,fontWeight:700,lineHeight:1.4}}>{e[4]}</div>
-                </div>
-              </div>
-              {sp.length>0 && <div style={{marginBottom:9,padding:"8px 11px",background:"#111",borderRadius:8}}>
-                <div style={{color:"#22c55e",fontSize:11,marginBottom:4}}>✓ {sp.length} draft{sp.length>1?"s":""} ready</div>
-                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{sp.map(s=>{const pp=PLATFORMS.find(pl=>pl.id===s.pid);const xf=s.pid==="twitter"?(resolveXFormat(s)==="single"?" 💬": " 🧵"):"";return<span key={s.id} style={{background:pp?.color+"20",color:pp?.color,fontSize:11,padding:"2px 8px",borderRadius:6}}>{pp?.emoji} {pp?.name}{xf}{s.posted?" ✓":""}</span>;})}</div>
-              </div>}
-              <button onClick={()=>doGen(e)} disabled={!!isG||!oKey} style={{width:"100%",padding:"10px",background:isG||!oKey?"#0d0d0d":"linear-gradient(135deg,#ec4899,#f97316)",border:`1px solid ${isG||!oKey?"#ec489928":"transparent"}`,borderRadius:9,color:"#fff",fontSize:12,fontFamily:"monospace",fontWeight:700,cursor:isG||!oKey?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:!oKey?0.5:1}}>
-                {!oKey?"⚠ Add OpenAI key in 🔑 Keys tab":isG?<><Dots/><span style={{color:"#ec4899",fontSize:11}}>{gst}</span></>:`⚡ Generate Day ${e[0]} ${e[1]} · ${sel.length} platform${sel.length!==1?"s":""}`}
-              </button>
-            </div>;
-          })}
-        </div>}
 
-        {/* ── DRAFTS TAB ── */}
-        {tab==="posts" && <div style={{animation:"fu .2s"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:6}}>
-            <div style={{fontSize:13,fontWeight:700}}>{fp.length} posts</div>
-            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-              <button onClick={()=>setFilt("all")} style={{padding:"4px 10px",borderRadius:14,border:`1px solid ${filt==="all"?"#ec4899":"#2d2d2d"}`,background:filt==="all"?"#1a0010":"transparent",color:filt==="all"?"#ec4899":"#6b7280",fontSize:11,cursor:"pointer"}}>All</button>
-              {PLATFORMS.map(p=><button key={p.id} onClick={()=>setFilt(filt===p.id?"all":p.id)} style={{padding:"4px 10px",borderRadius:14,border:`1px solid ${filt===p.id?p.color:"#2d2d2d"}`,background:filt===p.id?p.color+"22":"transparent",color:filt===p.id?p.color:"#6b7280",fontSize:11,cursor:"pointer"}}>{p.emoji}</button>)}
-            </div>
-          </div>
-          {fp.length===0
-            ? <div style={{textAlign:"center",padding:"55px 20px",color:"#374151"}}><div style={{fontSize:32,marginBottom:8}}>⚡</div><div>No posts yet — go to Calendar and generate</div><button onClick={()=>setTab("cal")} style={{marginTop:11,background:"#1a0010",border:"1px solid #ec4899",color:"#ec4899",padding:"6px 15px",borderRadius:8,cursor:"pointer",fontSize:11}}>→ Calendar</button></div>
-            : <div style={{display:"flex",flexDirection:"column",gap:12}}>{fp.map(p=>(
-                <Card key={p.id} post={p} onPosted={id=>setPosts(prev=>prev.map(p=>p.id===id?{...p,posted:true}:p))} onDelete={id=>setPosts(prev=>prev.filter(p=>p.id!==id))} onMetric={(id,mv)=>setPosts(prev=>prev.map(p=>p.id===id?{...p,...mv}:p))}/>
-              ))}</div>}
-        </div>}
+                  {existingPosts.length > 0 && (
+                    <div style={{
+                      marginBottom: 10, padding: "8px 12px",
+                      background: "#111", borderRadius: 9
+                    }}>
+                      <div style={{ color: "#22c55e", fontSize: 11, marginBottom: 4 }}>
+                        ✓ {existingPosts.length} draft{existingPosts.length > 1 ? "s" : ""} ready
+                      </div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {existingPosts.map(p => (
+                          <span key={p.id} style={{
+                            background: p.platform === "linkedin" ? "#0077b520" : "#1da1f220",
+                            color: p.platform === "linkedin" ? "#0077b5" : "#1da1f2",
+                            fontSize: 11, padding: "2px 9px", borderRadius: 6
+                          }}>
+                            {p.platform === "linkedin" ? "💼" : "🐦"} {p.posted ? "✓ posted" : "draft"}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-        {/* ── METRICS TAB ── */}
-        {tab==="metrics" && <div style={{animation:"fu .2s"}}>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(105px,1fr))",gap:8,marginBottom:13}}>
-            {[["Total posts",mt.totalPosts,"📝","#e5e7eb"],["Posted",mt.totalPosted,"📤","#22c55e"],["Reach",fmtMetric(mt.reach),"👁","#3b82f6"],["Likes",fmtMetric(mt.likes),"❤","#ec4899"],["Streak",mt.streak>0?`${mt.streak}d`:"0","🔥","#f97316"],["Drafts",mt.drafts,"📄","#a855f7"]].map(([l,v,ic,c])=>(
-              <div key={l} style={{background:"#0d0d0d",border:`1px solid ${c}20`,borderRadius:11,padding:"10px 12px"}}>
-                <div style={{fontSize:16,marginBottom:4}}>{ic}</div>
-                <div style={{color:c,fontWeight:800,fontSize:20}}>{v}</div>
-                <div style={{color:"#9ca3af",fontSize:11,marginTop:2}}>{l}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{background:"#0d0d0d",border:"1px solid #1f2937",borderRadius:12,padding:"13px 14px",marginBottom:11}}>
-            <div style={{fontSize:10,color:"#6b7280",letterSpacing:2,marginBottom:8}}>POSTS PER DAY — click bar to go to that day</div>
-            <div style={{display:"flex",alignItems:"flex-end",gap:2,height:55}}>
-              {mt.byDay.map((v,i)=>{const max=Math.max(...mt.byDay,1),c=wc(i+1);return(
-                <div key={i} onClick={()=>{setDay(i+1);setTab("cal");}} style={{flex:1,height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",gap:2,cursor:"pointer"}}>
-                  <div style={{width:"100%",background:v>0?c:"#1f2937",borderRadius:"2px 2px 0 0",height:`${Math.max((v/max)*100,v>0?8:2)}%`,transition:"height .3s"}}/>
-                  {[0,6,13,20,27,29].includes(i) && <div style={{color:"#374151",fontSize:8}}>{i+1}</div>}
+                  <button
+                    onClick={() => doGenerate(entry)}
+                    disabled={!!isGenerating}
+                    style={{
+                      width: "100%", padding: "11px",
+                      background: isGenerating ? "#0d0d0d" : `linear-gradient(135deg, ${c}cc, ${c}88)`,
+                      border: isGenerating ? `1px solid ${c}28` : "none",
+                      borderRadius: 10, color: isGenerating ? c : "#fff",
+                      fontSize: 12, fontFamily: "monospace", fontWeight: 700,
+                      cursor: isGenerating ? "not-allowed" : "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      transition: "all .2s"
+                    }}
+                  >
+                    {isGenerating
+                      ? <><Dots /><span style={{ color: c, fontSize: 11 }}>{genStatus}</span></>
+                      : `⚡ Generate Day ${day} ${slot} — LinkedIn + Twitter + Images`}
+                  </button>
                 </div>
-              );})}
-            </div>
-          </div>
-          <div style={{background:"#0d0d0d",border:"1px solid #1f2937",borderRadius:12,padding:"13px 14px",marginBottom:11}}>
-            <div style={{fontSize:10,color:"#6b7280",letterSpacing:2,marginBottom:10}}>BY PLATFORM</div>
-            {PLATFORMS.map(pl=>{
-              const plat=posts.filter(p=>p.pid===pl.id);
-              const ct=plat.filter(p=>p.posted).length;
-              const total=plat.length;
-              const rc=plat.reduce((s,p)=>s+(Number(p.reach)||0),0);
-              const lk=plat.reduce((s,p)=>s+(Number(p.likes)||0),0);
-              return<div key={pl.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,padding:"8px 11px",background:"#111",borderRadius:8}}>
-                <span style={{fontSize:13}}>{pl.emoji}</span>
-                <span style={{color:pl.color,fontSize:11,width:100,flexShrink:0}}>{pl.name}</span>
-                <span style={{color:total>0?"#e5e7eb":"#374151",fontSize:11,flex:1}}>{total} total · {ct} posted{rc>0?` · ${rc.toLocaleString()} reach`:""}{lk>0?` · ${lk} likes`:""}</span>
-                <div style={{width:55,height:6,background:"#1f2937",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",background:pl.color,width:`${Math.min((ct/Math.max(mt.totalPosted,1))*100*3,100)}%`}}/></div>
-              </div>;
+              );
             })}
           </div>
-          <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>{if(window.confirm("Clear all posts?"))setPosts([]);}} style={{background:"#1f0000",border:"1px solid #dc2626",color:"#f87171",padding:"7px 12px",borderRadius:8,cursor:"pointer",fontSize:11}}>Clear all</button>
-            <button onClick={()=>{const a=document.createElement("a");a.href="data:text/json,"+encodeURIComponent(JSON.stringify(posts));a.download="zeus_backup.json";a.click();}} style={{background:"#0a1a0a",border:"1px solid #22c55e",color:"#22c55e",padding:"7px 12px",borderRadius:8,cursor:"pointer",fontSize:11}}>Export backup</button>
+        )}
+
+        {/* ── POSTS TAB ── */}
+        {tab === "posts" && (
+          <div style={{ animation: "fadeUp .2s" }}>
+            <div style={{
+              display: "flex", justifyContent: "space-between",
+              alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>{filteredPosts.length} posts</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {[
+                  { id: "all", label: "All", color: "#ec4899" },
+                  { id: "linkedin", label: "💼 LinkedIn", color: "#0077b5" },
+                  { id: "twitter", label: "🐦 Twitter", color: "#1da1f2" }
+                ].map(p => (
+                  <button key={p.id} onClick={() => setFilterPlatform(p.id)} style={{
+                    padding: "4px 12px", borderRadius: 18,
+                    border: `1px solid ${filterPlatform === p.id ? p.color : "#2d2d2d"}`,
+                    background: filterPlatform === p.id ? p.color + "22" : "transparent",
+                    color: filterPlatform === p.id ? p.color : "#6b7280",
+                    fontSize: 11, fontFamily: "monospace", cursor: "pointer"
+                  }}>{p.label}</button>
+                ))}
+              </div>
+            </div>
+
+            {filteredPosts.length === 0
+              ? (
+                <div style={{ textAlign: "center", padding: "60px 20px", color: "#374151" }}>
+                  <div style={{ fontSize: 36, marginBottom: 10 }}>⚡</div>
+                  <div style={{ marginBottom: 14 }}>No posts yet — go to Calendar and generate</div>
+                  <button onClick={() => setTab("cal")} style={{
+                    background: "#1a0010", border: "1px solid #ec4899",
+                    color: "#ec4899", padding: "8px 20px", borderRadius: 8,
+                    cursor: "pointer", fontFamily: "monospace", fontSize: 12
+                  }}>→ Open Calendar</button>
+                </div>
+              )
+              : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {filteredPosts.map(p => (
+                    <PostCard
+                      key={p.id}
+                      post={p}
+                      accent={p.accent}
+                      onPosted={id => setPosts(prev => prev.map(x => x.id === id ? { ...x, posted: true } : x))}
+                      onDelete={id => setPosts(prev => prev.filter(x => x.id !== id))}
+                    />
+                  ))}
+                </div>
+              )}
           </div>
-        </div>}
+        )}
+
+        {/* ── METRICS TAB ── */}
+        {tab === "metrics" && (
+          <div style={{ animation: "fadeUp .2s" }}>
+            {/* Stats grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 10, marginBottom: 14 }}>
+              {[
+                { label: "Posted", value: posts.filter(p => p.posted).length, icon: "📤", color: "#22c55e" },
+                { label: "Drafts", value: posts.filter(p => !p.posted).length, icon: "📋", color: "#3b82f6" },
+                { label: "LinkedIn", value: posts.filter(p => p.platform === "linkedin" && p.posted).length, icon: "💼", color: "#0077b5" },
+                { label: "Twitter", value: posts.filter(p => p.platform === "twitter" && p.posted).length, icon: "🐦", color: "#1da1f2" },
+                { label: "Days covered", value: [...new Set(posts.map(p => p.day))].length, icon: "🗓", color: "#a855f7" },
+              ].map(s => (
+                <div key={s.label} style={{
+                  background: "#0d0d0d", border: `1px solid ${s.color}20`,
+                  borderRadius: 12, padding: "12px 14px"
+                }}>
+                  <div style={{ fontSize: 18, marginBottom: 4 }}>{s.icon}</div>
+                  <div style={{ color: s.color, fontWeight: 800, fontSize: 22 }}>{s.value}</div>
+                  <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 2 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Posts per day bar */}
+            <div style={{
+              background: "#0d0d0d", border: "1px solid #1f2937",
+              borderRadius: 13, padding: "14px 16px", marginBottom: 12
+            }}>
+              <div style={{ fontSize: 10, color: "#6b7280", letterSpacing: 2, marginBottom: 10 }}>POSTS PER DAY (click to jump)</div>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 64 }}>
+                {Array.from({ length: 30 }, (_, i) => {
+                  const d = i + 1;
+                  const count = posts.filter(p => p.day === d && p.posted).length;
+                  const max = Math.max(...Array.from({ length: 30 }, (_, j) => posts.filter(p => p.day === j + 1 && p.posted).length), 1);
+                  const c = phaseColor(d);
+                  return (
+                    <div key={i} onClick={() => { setSelectedDay(d); setTab("cal"); }}
+                      style={{ flex: 1, height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 2, cursor: "pointer" }}>
+                      <div style={{
+                        width: "100%", background: count > 0 ? c : "#1f2937",
+                        borderRadius: "2px 2px 0 0",
+                        height: `${Math.max((count / max) * 100, count > 0 ? 10 : 3)}%`,
+                        transition: "height .3s"
+                      }} />
+                      {[0, 6, 13, 20, 27, 29].includes(i) && <div style={{ color: "#374151", fontSize: 7 }}>{d}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Platform breakdown */}
+            <div style={{ background: "#0d0d0d", border: "1px solid #1f2937", borderRadius: 13, padding: "14px 16px", marginBottom: 12 }}>
+              <div style={{ fontSize: 10, color: "#6b7280", letterSpacing: 2, marginBottom: 12 }}>BY PLATFORM</div>
+              {[
+                { id: "linkedin", name: "LinkedIn", emoji: "💼", color: "#0077b5" },
+                { id: "twitter", name: "Twitter/X", emoji: "🐦", color: "#1da1f2" }
+              ].map(pl => {
+                const total = posts.filter(p => p.platform === pl.id).length;
+                const posted = posts.filter(p => p.platform === pl.id && p.posted).length;
+                return (
+                  <div key={pl.id} style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    marginBottom: 9, padding: "10px 14px",
+                    background: "#111", borderRadius: 10
+                  }}>
+                    <span style={{ fontSize: 16 }}>{pl.emoji}</span>
+                    <span style={{ color: pl.color, fontSize: 12, width: 110, flexShrink: 0 }}>{pl.name}</span>
+                    <span style={{ color: total > 0 ? "#e5e7eb" : "#374151", fontSize: 12, flex: 1 }}>
+                      {posted} posted · {total - posted} drafts
+                    </span>
+                    <div style={{ width: 70, height: 7, background: "#1f2937", borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ height: "100%", background: pl.color, width: `${Math.min((posted / Math.max(total, 1)) * 100, 100)}%`, transition: "width .5s" }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button onClick={() => {
+                if (window.confirm("Clear all posts? This cannot be undone.")) setPosts([]);
+              }} style={{
+                background: "#1f0000", border: "1px solid #dc2626",
+                color: "#f87171", padding: "8px 14px", borderRadius: 9,
+                cursor: "pointer", fontFamily: "monospace", fontSize: 11
+              }}>🗑 Clear all</button>
+              <button onClick={() => {
+                const a = document.createElement("a");
+                a.href = "data:text/json," + encodeURIComponent(JSON.stringify(posts));
+                a.download = "zeus_grassion_backup.json";
+                a.click();
+              }} style={{
+                background: "#0a1a0a", border: "1px solid #22c55e",
+                color: "#22c55e", padding: "8px 14px", borderRadius: 9,
+                cursor: "pointer", fontFamily: "monospace", fontSize: 11
+              }}>💾 Export backup</button>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
-  </div>;
+  );
 }

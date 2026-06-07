@@ -720,6 +720,75 @@ function SSDInbox({reports, onGetAll, collecting}) {
   );
 }
 
+
+// ─── REX DEEP RESEARCH ENGINE ────────────────────────────────────────────────
+async function rexDeepResearch(company, creds) {
+  const key = creds?.openai?.api_key?.trim();
+  if (!key) throw new Error("No OpenAI key set — go to 🔑 Keys tab");
+  const prompt = `You are REX, VP Sales for Grassion. Research "${company}" to find engineering leadership contacts.
+
+Return ONLY a JSON object, no markdown, no extra text:
+{
+  "company": "${company}",
+  "website": "their website URL",
+  "domain": "email domain e.g. company.com",
+  "linkedin_company": "https://linkedin.com/company/slug",
+  "contacts": [
+    {
+      "role": "CTO",
+      "name": "name if known else Unknown",
+      "linkedin_profile": "https://linkedin.com/in/slug if known else empty",
+      "email_guess": "firstname@domain.com",
+      "email_pattern": "first.last@domain.com",
+      "confidence": "High or Medium or Low"
+    }
+  ],
+  "what_they_do": "2 sentence description of the company",
+  "why_grassion_fits": "specific reason they need Grassion mentioning their known AI tool usage if any",
+  "dm_angle": "best LinkedIn DM opening under 200 chars",
+  "cold_email_subject": "best cold email subject line",
+  "next_action": "exactly what to do first and why"
+}`;
+
+  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":`Bearer ${key}`},
+    body: JSON.stringify({ model:"gpt-4o-mini", max_tokens:1000, messages:[{role:"user",content:prompt}] })
+  });
+  const d = await r.json();
+  if (d.error) throw new Error(d.error.message);
+  const raw = d.choices?.[0]?.message?.content || "{}";
+  try { return JSON.parse(raw.replace(/```json|```/g,"").trim()); }
+  catch { return { raw, parse_error: true }; }
+}
+
+async function sendDealEmail(deal, action, founderEmail, resendKey) {
+  if (!resendKey || !founderEmail) return;
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":`Bearer ${resendKey}`},
+      body: JSON.stringify({
+        from:"noreply@grassion.com",
+        to: founderEmail,
+        subject:`🎯 SSD Alert: ${deal.co} → ${action}`,
+        html:`<div style="font-family:monospace;background:#111;color:#e5e7eb;padding:20px;border-radius:8px">
+          <div style="color:#f59e0b;font-size:16px;font-weight:900;margin-bottom:10px">⚡ GRASSION SSD DEAL ALERT</div>
+          <div style="background:#0a0a0a;border:1px solid #374151;border-radius:6px;padding:12px;margin-bottom:10px">
+            <div style="color:#22c55e;font-size:14px;font-weight:700">${deal.co}</div>
+            <div style="color:#9ca3af;font-size:12px;margin-top:4px">${deal.contact}${deal.email ? " · " + deal.email : ""}</div>
+            <div style="color:#f59e0b;font-size:13px;margin-top:8px">Action: <strong>${action}</strong></div>
+            <div style="color:#6b7280;font-size:12px;margin-top:4px">Stage: ${deal.stage} · Value: $${deal.val}/mo</div>
+            ${deal.note ? `<div style="color:#4b5563;font-size:11px;margin-top:6px">${deal.note}</div>` : ""}
+          </div>
+          ${deal.li ? `<a href="https://${deal.li}" style="color:#0077b5;font-size:12px">💼 LinkedIn Profile →</a>` : ""}
+          <div style="color:#374151;font-size:10px;margin-top:14px">Grassion HQ · agents.grassion.com</div>
+        </div>`
+      })
+    });
+  } catch(e) { console.log("Email notification failed:", e.message); }
+}
+
 // ─── SALES PIPELINE ───────────────────────────────────────────────────────────
 function Pipeline({deals, setDeals, onAskRex, creds}) {
   const [drafting, setDrafting] = useState(null);
@@ -727,57 +796,99 @@ function Pipeline({deals, setDeals, onAskRex, creds}) {
   const [draftLoading, setDraftLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newDeal, setNewDeal] = useState({co:"",contact:"",email:"",li:"",val:149,note:""});
+  const [researching, setResearching] = useState(null);
+  const [researchData, setResearchData] = useState({});
+  const [showResearch, setShowResearch] = useState(null);
+  const [notif, setNotif] = useState("");
+
+  const toast = (msg) => { setNotif(msg); setTimeout(()=>setNotif(""), 3000); };
+  const founderEmail = creds?.founder?.email;
+  const resendKey = creds?.resend?.api_key;
+
+  const doResearch = async (deal) => {
+    setResearching(deal.id);
+    setShowResearch(deal.id);
+    try {
+      const data = await rexDeepResearch(deal.co, creds);
+      setResearchData(prev=>({...prev, [deal.id]: data}));
+      if (data.contacts?.[0]?.email_guess && !deal.email) {
+        setDeals(prev=>prev.map(d=>d.id===deal.id ? {...d, email:data.contacts[0].email_guess, li:data.linkedin_company||d.li} : d));
+        toast(`✅ Auto-filled email for ${deal.co}`);
+      }
+    } catch(e) {
+      setResearchData(prev=>({...prev, [deal.id]: {error: e.message}}));
+    }
+    setResearching(null);
+  };
 
   const genOutreach = async (deal) => {
     setDrafting(deal.id); setDraftLoading(true); setDraft("");
     try {
+      const rd = researchData[deal.id];
+      const extraCtx = rd && !rd.error ? `\nRESEARCH DATA:\nWebsite: ${rd.website||""}\nDomain: ${rd.domain||""}\nWhat they do: ${rd.what_they_do||""}\nWhy Grassion fits: ${rd.why_grassion_fits||""}\nDM angle: ${rd.dm_angle||""}\nContacts: ${JSON.stringify(rd.contacts||[])}` : "";
       const prompt = `Write hyper-personalized outreach for ${deal.co}:
 Contact: ${deal.contact}
-LinkedIn: ${deal.li}
-Email: ${deal.email || "unknown"}
-Notes: ${deal.note}
+LinkedIn: ${deal.li || rd?.linkedin_company || "search https://linkedin.com/company/"+deal.co.toLowerCase().replace(/\s+/g,"-")}
+Email: ${deal.email || rd?.contacts?.[0]?.email_guess || "unknown"}
+Notes: ${deal.note}${extraCtx}
 
-Provide:
-1. LINKEDIN DM (under 280 chars, casual, from founder's personal account)
-2. COLD EMAIL — Subject line + body (under 150 words, specific to what ${deal.co} does)
-3. FOLLOW-UP #2 (one week later, under 80 words)`;
+Provide ALL 4 clearly labelled:
+1. LINKEDIN DM (under 280 chars, casual) — Direct link: ${deal.li ? "https://"+deal.li : rd?.contacts?.[0]?.linkedin_profile || rd?.linkedin_company || "https://linkedin.com/search/results/people/?keywords="+encodeURIComponent(deal.contact+" "+deal.co)}
+2. COLD EMAIL — Subject + body (under 150 words, specific to ${deal.co})
+3. FOLLOW-UP #2 (Day 5, data point, under 80 words)
+4. BREAKUP EMAIL (Day 21, under 50 words)`;
       const resp = await callAI(AGENTS.rex.basePrompt, [{role:"user",content:prompt}], creds);
       setDraft(resp);
     } catch(e) { setDraft(`Error: ${e.message}`); }
     setDraftLoading(false);
   };
 
-  const move = (id, dir) => setDeals(prev=>prev.map(d=>{
-    if(d.id!==id) return d;
-    const idx = DEAL_STAGES.indexOf(d.stage);
-    return {...d, stage:DEAL_STAGES[Math.max(0,Math.min(DEAL_STAGES.length-1,idx+dir))]};
-  }));
+  const move = (id, dir) => {
+    const deal = deals.find(d=>d.id===id);
+    if (!deal) return;
+    const idx = DEAL_STAGES.indexOf(deal.stage);
+    const newStage = DEAL_STAGES[Math.max(0,Math.min(DEAL_STAGES.length-1,idx+dir))];
+    if (newStage === deal.stage) return;
+    setDeals(prev=>prev.map(d=>d.id===id ? {...d, stage:newStage} : d));
+    const updated = {...deal, stage:newStage};
+    sendDealEmail(updated, `Stage → ${newStage}`, founderEmail, resendKey);
+    toast(`📧 Email sent: ${deal.co} moved to ${newStage}`);
+  };
 
   const addDeal = () => {
     if(!newDeal.co) return;
     const d = {...newDeal, id:Date.now(), stage:"New Lead"};
     setDeals(prev=>[...prev,d]);
+    sendDealEmail(d, "New Lead added", founderEmail, resendKey);
     setNewDeal({co:"",contact:"",email:"",li:"",val:149,note:""});
     setAdding(false);
+    toast(`📧 Email sent: ${d.co} added`);
   };
 
   const removeDeal = (id) => setDeals(prev=>prev.filter(d=>d.id!==id));
   const won = deals.filter(d=>d.stage==="Won").reduce((s,d)=>s+d.val,0);
+  const rd = showResearch ? researchData[showResearch] : null;
+  const rdDeal = showResearch ? deals.find(d=>d.id===showResearch) : null;
 
   return (
-    <div style={{display:"flex",height:"100%"}}>
-      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        {/* Header */}
+    <div style={{display:"flex",height:"100%",position:"relative"}}>
+      {notif && (
+        <div style={{position:"absolute",top:8,right:8,zIndex:50,background:"#0a1a0a",border:"1px solid #22c55e",color:"#4ade80",padding:"6px 14px",borderRadius:8,fontSize:11,fontFamily:"monospace"}}>
+          {notif}
+        </div>
+      )}
+
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minWidth:0}}>
         <div style={{padding:"10px 16px",borderBottom:"1px solid #0d0d0d",display:"flex",gap:14,alignItems:"center",flexShrink:0,flexWrap:"wrap"}}>
           {[{l:"Won MRR",v:`$${won}/mo`,c:"#22c55e"},{l:"Total Leads",v:deals.length,c:"#9ca3af"},{l:"In Progress",v:deals.filter(d=>!["New Lead","Won","Lost"].includes(d.stage)).length,c:"#f59e0b"}].map((s,i)=>(
             <div key={i}><div style={{color:s.c,fontWeight:800,fontSize:16,fontFamily:"monospace"}}>{s.v}</div><div style={{color:"#4b5563",fontSize:10}}>{s.l}</div></div>
           ))}
-          <button onClick={()=>setAdding(true)} style={{marginLeft:"auto",background:"#22c55e22",border:"1px solid #22c55e44",color:"#22c55e",padding:"5px 12px",borderRadius:7,cursor:"pointer",fontSize:11,fontFamily:"monospace"}}>
-            + Add Lead
-          </button>
+          <div style={{marginLeft:"auto",display:"flex",gap:6,alignItems:"center"}}>
+            {(!founderEmail||!resendKey)&&<div style={{background:"#f59e0b11",border:"1px solid #f59e0b33",color:"#f59e0b",padding:"3px 8px",borderRadius:5,fontSize:9,fontFamily:"monospace"}}>⚠ Set Resend+email for alerts</div>}
+            <button onClick={()=>setAdding(true)} style={{background:"#22c55e22",border:"1px solid #22c55e44",color:"#22c55e",padding:"5px 12px",borderRadius:7,cursor:"pointer",fontSize:11,fontFamily:"monospace"}}>+ Add Lead</button>
+          </div>
         </div>
 
-        {/* Add Deal Form */}
         {adding && (
           <div style={{padding:"10px 16px",borderBottom:"1px solid #0d0d0d",background:"#050505",display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>
             {[["co","Company*"],["contact","Contact"],["email","Email"],["li","LinkedIn URL"],["note","Notes"]].map(([k,pl])=>(
@@ -791,7 +902,6 @@ Provide:
           </div>
         )}
 
-        {/* Deal List */}
         <div style={{flex:1,overflowY:"auto"}}>
           {DEAL_STAGES.filter(s=>deals.some(d=>d.stage===s)).map(stage=>(
             <div key={stage}>
@@ -800,45 +910,148 @@ Provide:
                 <span style={{color:"#6b7280",fontSize:9,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:1}}>{stage}</span>
                 <span style={{color:"#374151",fontSize:9,fontFamily:"monospace"}}>({deals.filter(d=>d.stage===stage).length})</span>
               </div>
-              {deals.filter(d=>d.stage===stage).map(deal=>(
-                <div key={deal.id} style={{padding:"9px 16px",borderBottom:"1px solid #0d0d0d",display:"flex",alignItems:"center",gap:9}}>
-                  <div style={{width:30,height:30,borderRadius:6,background:"#111",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>🏢</div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{color:"#e5e7eb",fontWeight:600,fontSize:12}}>{deal.co}</div>
-                    <div style={{color:"#6b7280",fontSize:10}}>{deal.contact}{deal.email?` · ${deal.email}`:""} · {deal.note?.slice(0,40)}</div>
+              {deals.filter(d=>d.stage===stage).map(deal=>{
+                const hasResearch = !!researchData[deal.id];
+                const isResearching = researching===deal.id;
+                return (
+                  <div key={deal.id} style={{padding:"9px 16px",borderBottom:"1px solid #0d0d0d",display:"flex",alignItems:"center",gap:7,cursor:"pointer",background:showResearch===deal.id?"#0a0a14":"transparent"}}
+                    onClick={()=>setShowResearch(showResearch===deal.id?null:deal.id)}>
+                    <div style={{width:30,height:30,borderRadius:6,background:"#111",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>🏢</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
+                        <span style={{color:"#e5e7eb",fontWeight:600,fontSize:12}}>{deal.co}</span>
+                        {hasResearch&&<span style={{background:"#3b82f622",color:"#60a5fa",fontSize:8,padding:"1px 5px",borderRadius:4}}>🔍 researched</span>}
+                      </div>
+                      <div style={{color:"#6b7280",fontSize:10,marginTop:1}}>
+                        {deal.contact}
+                        {deal.email
+                          ? <a href={`mailto:${deal.email}`} onClick={e=>{e.stopPropagation();sendDealEmail(deal,"Email opened",founderEmail,resendKey);toast(`📧 Notif: ${deal.co}`);}} style={{color:"#0077b5",marginLeft:5,textDecoration:"none"}}>· ✉ {deal.email}</a>
+                          : <span style={{color:"#374151",marginLeft:4}}>· no email</span>}
+                        {deal.li
+                          ? <a href={`https://${deal.li}`} target="_blank" rel="noreferrer" onClick={e=>{e.stopPropagation();sendDealEmail(deal,"LinkedIn visited",founderEmail,resendKey);toast(`📧 Notif: ${deal.co}`);}} style={{color:"#0077b5",marginLeft:5,textDecoration:"none"}}>· 💼 LI</a>
+                          : ""}
+                      </div>
+                    </div>
+                    <div style={{background:"#16a34a22",color:"#22c55e",fontSize:10,fontFamily:"monospace",padding:"2px 6px",borderRadius:4,flexShrink:0}}>${deal.val}/mo</div>
+                    <div style={{display:"flex",gap:2}} onClick={e=>e.stopPropagation()}>
+                      <button onClick={()=>move(deal.id,-1)} style={{background:"#111",border:"1px solid #374151",color:"#6b7280",width:22,height:22,borderRadius:4,cursor:"pointer",fontSize:10}}>←</button>
+                      <button onClick={()=>move(deal.id,1)} style={{background:"#111",border:"1px solid #374151",color:"#6b7280",width:22,height:22,borderRadius:4,cursor:"pointer",fontSize:10}}>→</button>
+                    </div>
+                    <button onClick={e=>{e.stopPropagation();doResearch(deal);}} disabled={isResearching}
+                      title="REX Deep Research — find emails, LinkedIn, next action"
+                      style={{background:isResearching?"#374151":hasResearch?"#3b82f633":"#3b82f622",border:"1px solid #3b82f644",color:isResearching?"#6b7280":"#60a5fa",padding:"4px 8px",borderRadius:6,cursor:isResearching?"not-allowed":"pointer",fontSize:10,fontFamily:"monospace",flexShrink:0}}>
+                      {isResearching?"⏳":"🔍"}
+                    </button>
+                    <button onClick={e=>{e.stopPropagation();genOutreach(deal);}} title="Draft outreach"
+                      style={{background:"#3b82f622",border:"1px solid #3b82f644",color:"#60a5fa",padding:"4px 9px",borderRadius:6,cursor:"pointer",fontSize:10,fontFamily:"monospace",flexShrink:0}}>✉</button>
+                    <button onClick={e=>{e.stopPropagation();removeDeal(deal.id);}} style={{background:"transparent",border:"none",color:"#374151",cursor:"pointer",fontSize:12,padding:"0 2px"}}>✕</button>
                   </div>
-                  <div style={{background:"#16a34a22",color:"#22c55e",fontSize:10,fontFamily:"monospace",padding:"2px 6px",borderRadius:4,flexShrink:0}}>${deal.val}/mo</div>
-                  <div style={{display:"flex",gap:2}}>
-                    <button onClick={()=>move(deal.id,-1)} style={{background:"#111",border:"1px solid #374151",color:"#6b7280",width:22,height:22,borderRadius:4,cursor:"pointer",fontSize:10}}>←</button>
-                    <button onClick={()=>move(deal.id,1)} style={{background:"#111",border:"1px solid #374151",color:"#6b7280",width:22,height:22,borderRadius:4,cursor:"pointer",fontSize:10}}>→</button>
-                  </div>
-                  <button onClick={()=>genOutreach(deal)} style={{background:"#3b82f622",border:"1px solid #3b82f644",color:"#60a5fa",padding:"4px 9px",borderRadius:6,cursor:"pointer",fontSize:10,fontFamily:"monospace",flexShrink:0}}>✉ Draft</button>
-                  <button onClick={()=>removeDeal(deal.id)} style={{background:"transparent",border:"none",color:"#374151",cursor:"pointer",fontSize:12,padding:"0 2px"}}>✕</button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ))}
         </div>
       </div>
 
-      {/* Draft Panel */}
-      {drafting && (
-        <div style={{width:320,borderLeft:"1px solid #0d0d0d",display:"flex",flexDirection:"column"}}>
-          <div style={{padding:"10px 12px",borderBottom:"1px solid #0d0d0d",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <div style={{color:"#3b82f6",fontFamily:"monospace",fontWeight:700,fontSize:11}}>✉ {deals.find(d=>d.id===drafting)?.co}</div>
-            <button onClick={()=>setDrafting(null)} style={{background:"transparent",border:"none",color:"#6b7280",cursor:"pointer",fontSize:14}}>✕</button>
-          </div>
-          <div style={{flex:1,padding:10,overflowY:"auto"}}>
-            {draftLoading
-              ? <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10,padding:20}}><Dots c="#3b82f6"/><div style={{color:"#4b5563",fontSize:11}}>REX writing personalized outreach...</div></div>
-              : <pre style={{color:"#93c5fd",fontSize:11,fontFamily:"monospace",whiteSpace:"pre-wrap",lineHeight:1.7,margin:0}}>{draft}</pre>
-            }
-          </div>
-          {draft && (
-            <div style={{padding:10,borderTop:"1px solid #0d0d0d",display:"flex",gap:6}}>
-              <button onClick={()=>navigator.clipboard?.writeText(draft)} style={{flex:1,background:"#3b82f622",border:"1px solid #3b82f644",color:"#60a5fa",padding:7,borderRadius:6,cursor:"pointer",fontSize:10,fontFamily:"monospace"}}>📋 Copy</button>
-              <button onClick={()=>onAskRex(`Improve this outreach: ${draft.slice(0,300)}`)} style={{flex:1,background:"#111",border:"1px solid #374151",color:"#9ca3af",padding:7,borderRadius:6,cursor:"pointer",fontSize:10}}>Ask REX</button>
-            </div>
+      {(showResearch||drafting)&&(
+        <div style={{width:340,borderLeft:"1px solid #0d0d0d",display:"flex",flexDirection:"column",overflowY:"auto"}}>
+          {showResearch&&!drafting&&(
+            <>
+              <div style={{padding:"10px 12px",borderBottom:"1px solid #0d0d0d",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+                <div style={{color:"#3b82f6",fontFamily:"monospace",fontWeight:700,fontSize:11}}>🔍 {rdDeal?.co} — REX Research</div>
+                <button onClick={()=>setShowResearch(null)} style={{background:"transparent",border:"none",color:"#6b7280",cursor:"pointer",fontSize:14}}>✕</button>
+              </div>
+              <div style={{flex:1,padding:12,overflowY:"auto"}}>
+                {!rd?(
+                  <div style={{textAlign:"center",padding:20}}>
+                    <div style={{color:"#4b5563",fontSize:12,marginBottom:10}}>No research yet</div>
+                    <button onClick={()=>rdDeal&&doResearch(rdDeal)} style={{background:"#3b82f6",border:"none",borderRadius:7,padding:"8px 16px",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"monospace"}}>🔍 Research Now</button>
+                  </div>
+                ):rd.error?(
+                  <div style={{color:"#ef4444",fontSize:11,fontFamily:"monospace",padding:8}}>{rd.error}</div>
+                ):(
+                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                    <div style={{background:"#0a0a0a",border:"1px solid #1f2937",borderRadius:8,padding:10}}>
+                      <div style={{color:"#60a5fa",fontSize:10,fontFamily:"monospace",fontWeight:700,marginBottom:6}}>COMPANY</div>
+                      {rd.website&&<div style={{marginBottom:3}}><span style={{color:"#4b5563",fontSize:10}}>Web: </span><a href={rd.website} target="_blank" rel="noreferrer" style={{color:"#3b82f6",fontSize:11}}>{rd.website} ↗</a></div>}
+                      {rd.linkedin_company&&<div style={{marginBottom:3}}><span style={{color:"#4b5563",fontSize:10}}>LinkedIn: </span><a href={rd.linkedin_company} target="_blank" rel="noreferrer" style={{color:"#0077b5",fontSize:11}}>{rd.linkedin_company} ↗</a></div>}
+                      {rd.domain&&<div><span style={{color:"#4b5563",fontSize:10}}>Domain: </span><span style={{color:"#22c55e",fontSize:11,fontFamily:"monospace"}}>{rd.domain}</span></div>}
+                      {rd.what_they_do&&<div style={{color:"#9ca3af",fontSize:11,marginTop:6,lineHeight:1.5}}>{rd.what_they_do}</div>}
+                    </div>
+                    {rd.contacts?.length>0&&(
+                      <div style={{background:"#0a0a0a",border:"1px solid #1f2937",borderRadius:8,padding:10}}>
+                        <div style={{color:"#60a5fa",fontSize:10,fontFamily:"monospace",fontWeight:700,marginBottom:6}}>CONTACTS</div>
+                        {rd.contacts.map((c,i)=>(
+                          <div key={i} style={{marginBottom:8,paddingBottom:8,borderBottom:i<rd.contacts.length-1?"1px solid #111":"none"}}>
+                            <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:3,flexWrap:"wrap"}}>
+                              <span style={{color:"#e5e7eb",fontWeight:600,fontSize:12}}>{c.name}</span>
+                              <span style={{background:"#374151",color:"#9ca3af",fontSize:9,padding:"1px 5px",borderRadius:4}}>{c.role}</span>
+                              <span style={{background:c.confidence==="High"?"#16a34a22":c.confidence==="Medium"?"#d9770622":"#37414122",color:c.confidence==="High"?"#22c55e":c.confidence==="Medium"?"#f59e0b":"#6b7280",fontSize:9,padding:"1px 5px",borderRadius:4}}>{c.confidence}</span>
+                            </div>
+                            {c.linkedin_profile&&<a href={c.linkedin_profile} target="_blank" rel="noreferrer" style={{color:"#0077b5",fontSize:11,display:"block",marginBottom:2}}>💼 LinkedIn Profile ↗</a>}
+                            {c.email_guess&&(
+                              <div style={{display:"flex",alignItems:"center",gap:5}}>
+                                <span style={{color:"#22c55e",fontFamily:"monospace",fontSize:11}}>{c.email_guess}</span>
+                                <button onClick={()=>navigator.clipboard?.writeText(c.email_guess)} style={{background:"transparent",border:"1px solid #374151",color:"#6b7280",borderRadius:4,padding:"1px 5px",cursor:"pointer",fontSize:9}}>copy</button>
+                              </div>
+                            )}
+                            {c.email_pattern&&<div style={{color:"#4b5563",fontSize:10,marginTop:1}}>Pattern: {c.email_pattern}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{background:"#0a0a0a",border:"1px solid #1f2937",borderRadius:8,padding:10}}>
+                      <div style={{color:"#60a5fa",fontSize:10,fontFamily:"monospace",fontWeight:700,marginBottom:6}}>FIND EMAIL TOOLS</div>
+                      {[
+                        ["Hunter.io",`https://hunter.io/search/${rdDeal?.co?.toLowerCase().replace(/\s+/g,"-")}`],
+                        ["Apollo.io",`https://app.apollo.io/#/people?organizationNames[]=${encodeURIComponent(rdDeal?.co||"")}&personTitles[]=CTO&personTitles[]=VP%20Engineering`],
+                        ["RocketReach",`https://www.rocketreach.co/search?name=${encodeURIComponent("CTO "+(rdDeal?.co||""))}`],
+                        ["LinkedIn People",`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent((rdDeal?.co||"")+" CTO VP Engineering")}`],
+                        ["Crunchbase",`https://www.crunchbase.com/organization/${rdDeal?.co?.toLowerCase().replace(/\s+/g,"-")}`],
+                      ].map(([n,u])=>(
+                        <a key={n} href={u} target="_blank" rel="noreferrer" style={{display:"block",color:"#60a5fa",fontSize:11,marginBottom:4,textDecoration:"none"}}>{n} ↗</a>
+                      ))}
+                    </div>
+                    {rd.why_grassion_fits&&(
+                      <div style={{background:"#0a0810",border:"1px solid #3b82f633",borderRadius:8,padding:10}}>
+                        <div style={{color:"#60a5fa",fontSize:10,fontFamily:"monospace",fontWeight:700,marginBottom:4}}>WHY GRASSION FITS</div>
+                        <div style={{color:"#93c5fd",fontSize:11,lineHeight:1.5}}>{rd.why_grassion_fits}</div>
+                      </div>
+                    )}
+                    {rd.next_action&&(
+                      <div style={{background:"#0a1a0a",border:"1px solid #22c55e44",borderRadius:8,padding:10}}>
+                        <div style={{color:"#22c55e",fontSize:10,fontFamily:"monospace",fontWeight:700,marginBottom:4}}>REX: NEXT ACTION</div>
+                        <div style={{color:"#86efac",fontSize:12,lineHeight:1.5}}>{rd.next_action}</div>
+                      </div>
+                    )}
+                    <button onClick={()=>{setShowResearch(null);genOutreach(rdDeal);setDrafting(rdDeal?.id);}}
+                      style={{background:"#3b82f6",border:"none",borderRadius:8,padding:"9px",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"monospace"}}>
+                      ✉ Draft Outreach with Research
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+          {drafting&&(
+            <>
+              <div style={{padding:"10px 12px",borderBottom:"1px solid #0d0d0d",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+                <div style={{color:"#3b82f6",fontFamily:"monospace",fontWeight:700,fontSize:11}}>✉ {deals.find(d=>d.id===drafting)?.co}</div>
+                <button onClick={()=>setDrafting(null)} style={{background:"transparent",border:"none",color:"#6b7280",cursor:"pointer",fontSize:14}}>✕</button>
+              </div>
+              <div style={{flex:1,padding:10,overflowY:"auto"}}>
+                {draftLoading
+                  ?<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10,padding:20}}><Dots c="#3b82f6"/><div style={{color:"#4b5563",fontSize:11}}>REX writing personalized outreach...</div></div>
+                  :<pre style={{color:"#93c5fd",fontSize:11,fontFamily:"monospace",whiteSpace:"pre-wrap",lineHeight:1.7,margin:0}}>{draft}</pre>
+                }
+              </div>
+              {draft&&(
+                <div style={{padding:10,borderTop:"1px solid #0d0d0d",display:"flex",gap:6,flexShrink:0}}>
+                  <button onClick={()=>navigator.clipboard?.writeText(draft)} style={{flex:1,background:"#3b82f622",border:"1px solid #3b82f644",color:"#60a5fa",padding:7,borderRadius:6,cursor:"pointer",fontSize:10,fontFamily:"monospace"}}>📋 Copy</button>
+                  <button onClick={()=>onAskRex(`Improve this outreach: ${draft.slice(0,300)}`)} style={{flex:1,background:"#111",border:"1px solid #374151",color:"#9ca3af",padding:7,borderRadius:6,cursor:"pointer",fontSize:10}}>Ask REX</button>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
